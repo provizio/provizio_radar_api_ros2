@@ -12,64 +12,138 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <assert.h>
+
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
-#include <sensor_msgs/msg/point_cloud2.hpp>
 
-class provizio_radar_api_ros2_lifecycle_node : public rclcpp_lifecycle::LifecycleNode
+#include "provizio_radar_api_ros2/common.h"
+#include "provizio_radar_api_ros2/radar_api_ros2_wrapper.h"
+
+namespace provizio
 {
-  public:
-    provizio_radar_api_ros2_lifecycle_node() : LifecycleNode("provizio_radar_api_ros2_lifecycle_node")
+    class provizio_radar_api_ros2_lifecycle_node : public rclcpp_lifecycle::LifecycleNode
     {
-        publisher = this->create_publisher<sensor_msgs::msg::PointCloud2>("/provizio_radar_point_cloud",
-                                                                          rclcpp::SystemDefaultsQoS{});
-    }
+      public:
+        provizio_radar_api_ros2_lifecycle_node() : LifecycleNode("provizio_radar_api_ros2_lifecycle_node")
+        {
+            declare_common_parameters(*this);
+        }
 
-    CallbackReturn on_configure(const rclcpp_lifecycle::State &) override
-    {
-        RCLCPP_INFO(get_logger(), "provizio_radar_api_ros2_lifecycle_node configuring...");
-        return CallbackReturn::SUCCESS;
-    }
+        CallbackReturn on_configure(const rclcpp_lifecycle::State &) override
+        {
+            if (api_wrapper)
+            {
+                RCLCPP_ERROR(get_logger(),
+                             "provizio_radar_api_ros2_lifecycle_node can't be configured as it's already configured");
+                return CallbackReturn::FAILURE;
+            }
 
-    CallbackReturn on_activate(const rclcpp_lifecycle::State &) override
-    {
-        RCLCPP_INFO(get_logger(), "provizio_radar_api_ros2_lifecycle_node activating...");
-        return CallbackReturn::SUCCESS;
-    }
+            assert(!is_active); // It can't be active if there is no api_wrapper
 
-    CallbackReturn on_deactivate(const rclcpp_lifecycle::State &) override
-    {
-        RCLCPP_INFO(get_logger(), "provizio_radar_api_ros2_lifecycle_node deactivating...");
-        return CallbackReturn::SUCCESS;
-    }
+            api_wrapper = std::make_unique<radar_api_ros2_wrapper<rclcpp_lifecycle::LifecycleNode>>(*this);
+            RCLCPP_INFO(get_logger(), "provizio_radar_api_ros2_lifecycle_node configured");
+            return CallbackReturn::SUCCESS;
+        }
 
-    CallbackReturn on_cleanup(const rclcpp_lifecycle::State &) override
-    {
-        RCLCPP_INFO(get_logger(), "provizio_radar_api_ros2_lifecycle_node cleanup...");
-        publisher.reset();
-        return CallbackReturn::SUCCESS;
-    }
+        CallbackReturn on_activate(const rclcpp_lifecycle::State &) override
+        {
+            if (!api_wrapper)
+            {
+                RCLCPP_ERROR(get_logger(),
+                             "provizio_radar_api_ros2_lifecycle_node can't be activated as it's not yet configured");
+                return CallbackReturn::FAILURE;
+            }
 
-    CallbackReturn on_shutdown(const rclcpp_lifecycle::State &) override
-    {
-        RCLCPP_INFO(get_logger(), "provizio_radar_api_ros2_lifecycle_node shutdown...");
-        publisher.reset();
-        return CallbackReturn::SUCCESS;
-    }
+            if (is_active)
+            {
+                RCLCPP_ERROR(get_logger(),
+                             "provizio_radar_api_ros2_lifecycle_node can't be activated as it's already active");
+                return CallbackReturn::FAILURE;
+            }
 
-  private:
-    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher;
-};
+            if (api_wrapper->activate())
+            {
+                is_active = true;
+                RCLCPP_INFO(get_logger(), "provizio_radar_api_ros2_lifecycle_node activated");
+                return CallbackReturn::SUCCESS;
+            }
+            else
+            {
+                RCLCPP_ERROR(get_logger(), "provizio_radar_api_ros2_lifecycle_node failed to activate");
+                return CallbackReturn::FAILURE;
+            }
+        }
+
+        CallbackReturn on_deactivate(const rclcpp_lifecycle::State &) override
+        {
+            if (!api_wrapper)
+            {
+                RCLCPP_ERROR(get_logger(),
+                             "provizio_radar_api_ros2_lifecycle_node can't be deactivated as it's not yet configured");
+                return CallbackReturn::FAILURE;
+            }
+
+            if (!is_active)
+            {
+                RCLCPP_ERROR(get_logger(),
+                             "provizio_radar_api_ros2_lifecycle_node can't be deactivated as it's not active");
+                return CallbackReturn::FAILURE;
+            }
+
+            if (api_wrapper->deactivate())
+            {
+                is_active = false;
+                RCLCPP_INFO(get_logger(), "provizio_radar_api_ros2_lifecycle_node deactivated");
+                return CallbackReturn::SUCCESS;
+            }
+            else
+            {
+                RCLCPP_ERROR(get_logger(), "provizio_radar_api_ros2_lifecycle_node failed to deactivate");
+                return CallbackReturn::FAILURE;
+            }
+        }
+
+        CallbackReturn on_cleanup(const rclcpp_lifecycle::State &) override
+        {
+            cleanup();
+
+            RCLCPP_INFO(get_logger(), "provizio_radar_api_ros2_lifecycle_node cleaned up");
+            return CallbackReturn::SUCCESS;
+        }
+
+        CallbackReturn on_shutdown(const rclcpp_lifecycle::State &) override
+        {
+            cleanup();
+
+            RCLCPP_INFO(get_logger(), "provizio_radar_api_ros2_lifecycle_node shut down");
+            return CallbackReturn::SUCCESS;
+        }
+
+      private:
+        void cleanup()
+        {
+            api_wrapper.reset();
+            is_active = false;
+        }
+
+        std::unique_ptr<radar_api_ros2_wrapper<rclcpp_lifecycle::LifecycleNode>> api_wrapper;
+        bool is_active = false;
+    };
+} // namespace provizio
 
 int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
 
-    auto node = std::make_shared<provizio_radar_api_ros2_lifecycle_node>();
+    auto node = std::make_shared<provizio::provizio_radar_api_ros2_lifecycle_node>();
 
-    RCLCPP_INFO(node->get_logger(), "provizio_radar_api_ros2_lifecycle_node running...");
+    RCLCPP_INFO(node->get_logger(), "provizio_radar_api_ros2_lifecycle_node started");
 
     rclcpp::spin(node->get_node_base_interface());
+
+    RCLCPP_INFO(node->get_logger(), "provizio_radar_api_ros2_lifecycle_node finished");
+
     rclcpp::shutdown();
 
     return 0;

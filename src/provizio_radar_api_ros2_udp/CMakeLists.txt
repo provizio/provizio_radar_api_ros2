@@ -1,0 +1,2 @@
+add_library(provizio_radar_api_ros2_udp STATIC constants_udp.cpp)
+target_include_directories(provizio_radar_api_ros2_udp PUBLIC include)
