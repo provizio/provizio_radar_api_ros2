@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.13)
 
 # Configuration
 set(DISABLE_PROVIZIO_CODING_STANDARDS_CHECKS OFF CACHE BOOL "Disable all provizio/coding_standards checks")
@@ -30,27 +30,23 @@ if(BUILD_LIFECYCLE_NODE)
     find_package(rclcpp_lifecycle REQUIRED)
 endif(BUILD_LIFECYCLE_NODE)
 
-# Common include directories
-include_directories(include)
-
 # Appropriate radar_api_ros2_wrapper
-add_subdirectory(src/provizio_radar_api_ros2_${PROVIZIO_RADAR_API})
-
-# provizio_radar_api_ros2_common
-add_library(provizio_radar_api_ros2_common STATIC src/common.cpp)
+add_subdirectory(provizio_radar_api_ros2_${PROVIZIO_RADAR_API})
 
 # provizio_radar_api_ros2_node
 if(BUILD_SIMPLE_NODE)
-    add_executable(provizio_radar_api_ros2_node src/provizio_radar_api_ros2_node.cpp)
+    add_executable(provizio_radar_api_ros2_node src/provizio_radar_api_ros2_node.cpp src/constants.cpp)
     ament_target_dependencies(provizio_radar_api_ros2_node rclcpp sensor_msgs)
-    target_link_libraries(provizio_radar_api_ros2_node provizio_radar_api_ros2_common provizio_radar_api_ros2_${PROVIZIO_RADAR_API})
+    target_include_directories(provizio_radar_api_ros2_node PUBLIC include)
+    target_link_libraries(provizio_radar_api_ros2_node provizio_radar_api_ros2_${PROVIZIO_RADAR_API})
 endif(BUILD_SIMPLE_NODE)
 
 # provizio_radar_api_ros2_lifecycle_node
 if(BUILD_LIFECYCLE_NODE)
-    add_executable(provizio_radar_api_ros2_lifecycle_node src/provizio_radar_api_ros2_lifecycle_node.cpp)
+    add_executable(provizio_radar_api_ros2_lifecycle_node src/provizio_radar_api_ros2_lifecycle_node.cpp src/constants.cpp)
     ament_target_dependencies(provizio_radar_api_ros2_lifecycle_node rclcpp rclcpp_lifecycle sensor_msgs)
-    target_link_libraries(provizio_radar_api_ros2_lifecycle_node provizio_radar_api_ros2_common provizio_radar_api_ros2_${PROVIZIO_RADAR_API})
+    target_include_directories(provizio_radar_api_ros2_lifecycle_node PUBLIC include)
+    target_link_libraries(provizio_radar_api_ros2_lifecycle_node provizio_radar_api_ros2_${PROVIZIO_RADAR_API})
 endif(BUILD_LIFECYCLE_NODE)
 
 ament_export_dependencies(rclcpp sensor_msgs)

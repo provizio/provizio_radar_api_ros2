@@ -17,7 +17,6 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
 
-#include "provizio_radar_api_ros2/common.h"
 #include "provizio_radar_api_ros2/radar_api_ros2_wrapper.h"
 
 namespace provizio
@@ -27,7 +26,6 @@ namespace provizio
       public:
         provizio_radar_api_ros2_lifecycle_node() : LifecycleNode("provizio_radar_api_ros2_lifecycle_node")
         {
-            declare_common_parameters(*this);
         }
 
         CallbackReturn on_configure(const rclcpp_lifecycle::State &) override
