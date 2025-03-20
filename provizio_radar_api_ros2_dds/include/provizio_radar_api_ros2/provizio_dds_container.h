@@ -9,6 +9,10 @@ namespace provizio
     std::shared_ptr<void> make_dds_subscriber_pointcloud2(
         const std::shared_ptr<void> &domain_participant, const std::string &topic_name,
         on_message_function<provizio::contained_pointcloud2> on_message, on_message_context context);
+    std::shared_ptr<void> make_dds_subscriber_odometry(const std::shared_ptr<void> &domain_participant,
+                                                       const std::string &topic_name,
+                                                       on_message_function<provizio::contained_odometry> on_message,
+                                                       on_message_context context);
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINER

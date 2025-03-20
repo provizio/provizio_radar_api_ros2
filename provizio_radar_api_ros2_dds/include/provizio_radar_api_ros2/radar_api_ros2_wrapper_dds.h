@@ -15,6 +15,7 @@
 #ifndef PROVIZIO_RADAR_API_ROS2_RADAR_API_ROS2_WRAPPER_DDS
 #define PROVIZIO_RADAR_API_ROS2_RADAR_API_ROS2_WRAPPER_DDS
 
+#include <nav_msgs/msg/odometry.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
 #include "provizio_radar_api_ros2/constants.h"
@@ -36,14 +37,29 @@ namespace provizio
 
       private:
         static void on_radar_point_cloud(void *context, contained_pointcloud2 message);
+        static void on_radar_point_cloud_sr(void *context, contained_pointcloud2 message);
+        static void on_entities_radar(void *context, contained_pointcloud2 message);
+        static void on_entities_camera(void *context, contained_pointcloud2 message);
+        static void on_entities_fusion(void *context, contained_pointcloud2 message);
+        static void on_radar_odometry(void *context, contained_odometry message);
 
-        const rclcpp::QoS default_ros2_qos{10};
+        const rclcpp::QoS default_ros2_qos{2};
         const std::uint32_t dds_domain_id = 0; // TODO: Read from config, if specified
 
         node_t &node;
         std::shared_ptr<void> dds_domain_participant;
         std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> ros2_radar_pc_publisher;
+        std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> ros2_radar_pc_sr_publisher;
+        std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> ros2_entities_radar_publisher;
+        std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> ros2_entities_camera_publisher;
+        std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> ros2_entities_fusion_publisher;
+        std::shared_ptr<rclcpp::Publisher<nav_msgs::msg::Odometry>> ros2_radar_odometry_publisher;
         std::shared_ptr<void> dds_radar_pc_subscriber;
+        std::shared_ptr<void> dds_radar_pc_sr_subscriber;
+        std::shared_ptr<void> dds_entities_radar_subscriber;
+        std::shared_ptr<void> dds_entities_camera_subscriber;
+        std::shared_ptr<void> dds_entities_fusion_subscriber;
+        std::shared_ptr<void> dds_radar_odometry_subscriber;
     };
 
     template <typename node_t> bool radar_api_ros2_wrapper_dds<node_t>::activate()
@@ -61,11 +77,31 @@ namespace provizio
         // TODO: Read topic names from config, if specified
         ros2_radar_pc_publisher =
             node.template create_publisher<sensor_msgs::msg::PointCloud2>(radar_pc_ros2_topic_name, default_ros2_qos);
+        ros2_radar_pc_sr_publisher = node.template create_publisher<sensor_msgs::msg::PointCloud2>(
+            radar_pc_sr_ros2_topic_name, default_ros2_qos);
+        ros2_entities_radar_publisher = node.template create_publisher<sensor_msgs::msg::PointCloud2>(
+            entities_radar_ros2_topic_name, default_ros2_qos);
+        ros2_entities_camera_publisher = node.template create_publisher<sensor_msgs::msg::PointCloud2>(
+            entities_camera_ros2_topic_name, default_ros2_qos);
+        ros2_entities_fusion_publisher = node.template create_publisher<sensor_msgs::msg::PointCloud2>(
+            entities_fusion_ros2_topic_name, default_ros2_qos);
+        ros2_radar_odometry_publisher =
+            node.template create_publisher<nav_msgs::msg::Odometry>(radar_odometry_ros2_topic_name, default_ros2_qos);
 
         // Create subscribers
         // TODO: Read topic names from config, if specified
         dds_radar_pc_subscriber = make_dds_subscriber_pointcloud2(dds_domain_participant, radar_pc_dds_topic_name,
                                                                   &on_radar_point_cloud, this);
+        dds_radar_pc_sr_subscriber = make_dds_subscriber_pointcloud2(dds_domain_participant, radar_pc_sr_dds_topic_name,
+                                                                     &on_radar_point_cloud_sr, this);
+        dds_entities_radar_subscriber = make_dds_subscriber_pointcloud2(
+            dds_domain_participant, entities_radar_dds_topic_name, &on_entities_radar, this);
+        dds_entities_camera_subscriber = make_dds_subscriber_pointcloud2(
+            dds_domain_participant, entities_camera_dds_topic_name, &on_entities_camera, this);
+        dds_entities_fusion_subscriber = make_dds_subscriber_pointcloud2(
+            dds_domain_participant, entities_fusion_dds_topic_name, &on_entities_fusion, this);
+        dds_radar_odometry_subscriber = make_dds_subscriber_odometry(
+            dds_domain_participant, radar_odometry_dds_topic_name, &on_radar_odometry, this);
 
         return true;
     }
@@ -80,9 +116,19 @@ namespace provizio
 
         // Destroy the subscribers first so none of them tries to publish with destroyed publishers
         dds_radar_pc_subscriber.reset();
+        dds_radar_pc_sr_subscriber.reset();
+        dds_entities_radar_subscriber.reset();
+        dds_entities_camera_subscriber.reset();
+        dds_entities_fusion_subscriber.reset();
+        dds_radar_odometry_subscriber.reset();
 
         // Destroy the publishers
         ros2_radar_pc_publisher.reset();
+        ros2_radar_pc_sr_publisher.reset();
+        ros2_entities_radar_publisher.reset();
+        ros2_entities_camera_publisher.reset();
+        ros2_entities_fusion_publisher.reset();
+        ros2_radar_odometry_publisher.reset();
 
         // dds_domain_participant
         dds_domain_participant.reset();
@@ -99,6 +145,66 @@ namespace provizio
         if (publisher != nullptr)
         {
             publisher->publish(to_ros2_pointcloud2(std::move(message)));
+        }
+    }
+
+    template <typename node_t>
+    void radar_api_ros2_wrapper_dds<node_t>::on_radar_point_cloud_sr(void *context, contained_pointcloud2 message)
+    {
+        auto publisher =
+            static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
+                ->ros2_radar_pc_sr_publisher; // To make sure it can't be destroyed by another thread during this call
+        if (publisher != nullptr)
+        {
+            publisher->publish(to_ros2_pointcloud2(std::move(message)));
+        }
+    }
+
+    template <typename node_t>
+    void radar_api_ros2_wrapper_dds<node_t>::on_entities_radar(void *context, contained_pointcloud2 message)
+    {
+        auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
+                             ->ros2_entities_radar_publisher; // To make sure it can't be destroyed by another thread
+                                                              // during this call
+        if (publisher != nullptr)
+        {
+            publisher->publish(to_ros2_pointcloud2(std::move(message)));
+        }
+    }
+
+    template <typename node_t>
+    void radar_api_ros2_wrapper_dds<node_t>::on_entities_camera(void *context, contained_pointcloud2 message)
+    {
+        auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
+                             ->ros2_entities_camera_publisher; // To make sure it can't be destroyed by another thread
+                                                               // during this call
+        if (publisher != nullptr)
+        {
+            publisher->publish(to_ros2_pointcloud2(std::move(message)));
+        }
+    }
+
+    template <typename node_t>
+    void radar_api_ros2_wrapper_dds<node_t>::on_entities_fusion(void *context, contained_pointcloud2 message)
+    {
+        auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
+                             ->ros2_entities_fusion_publisher; // To make sure it can't be destroyed by another thread
+                                                               // during this call
+        if (publisher != nullptr)
+        {
+            publisher->publish(to_ros2_pointcloud2(std::move(message)));
+        }
+    }
+
+    template <typename node_t>
+    void radar_api_ros2_wrapper_dds<node_t>::on_radar_odometry(void *context, contained_odometry message)
+    {
+        auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
+                             ->ros2_radar_odometry_publisher; // To make sure it can't be destroyed by another thread
+                                                              // during this call
+        if (publisher != nullptr)
+        {
+            publisher->publish(to_ros2_odometry(std::move(message)));
         }
     }
 } // namespace provizio

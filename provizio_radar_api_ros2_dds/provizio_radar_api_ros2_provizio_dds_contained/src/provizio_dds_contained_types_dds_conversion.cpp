@@ -43,6 +43,51 @@ namespace provizio
             std::transform(fields.begin(), fields.end(), std::back_inserter(result), to_contained_point_field);
             return result;
         }
+
+        template <typename dds_vector_type> // supports both Point and Vector3 types
+        contained_vector3 to_contained_vector3(const dds_vector_type &vector)
+        {
+            return {vector.x(), vector.y(), vector.z()};
+        }
+
+        contained_quaternion to_contained_quaternion(const geometry_msgs::msg::Quaternion &orientation)
+        {
+            return {orientation.x(), orientation.y(), orientation.z(), orientation.w()};
+        }
+
+        contained_pose to_contained_pose(const geometry_msgs::msg::Pose &pose)
+        {
+            contained_pose result;
+            result.position = to_contained_vector3(pose.position());
+            result.orientation = to_contained_quaternion(pose.orientation());
+            return result;
+        }
+
+        contained_pose_with_covariance to_contained_pose_with_covariance(
+            const geometry_msgs::msg::PoseWithCovariance &pose)
+        {
+            contained_pose_with_covariance result;
+            result.pose = to_contained_pose(pose.pose());
+            result.covariance = pose.covariance();
+            return result;
+        }
+
+        contained_twist to_contained_twist(const geometry_msgs::msg::Twist &twist)
+        {
+            contained_twist result;
+            result.linear = to_contained_vector3(twist.linear());
+            result.angular = to_contained_vector3(twist.angular());
+            return result;
+        }
+
+        contained_twist_with_covariance to_contained_twist_with_covariance(
+            const geometry_msgs::msg::TwistWithCovariance &twist)
+        {
+            contained_twist_with_covariance result;
+            result.twist = to_contained_twist(twist.twist());
+            result.covariance = twist.covariance();
+            return result;
+        }
     } // namespace
 
     provizio::contained_pointcloud2 to_contained_pointcloud2(const sensor_msgs::msg::PointCloud2 &message)
@@ -57,6 +102,16 @@ namespace provizio
         result.row_step = message.row_step();
         result.data = message.data();
         result.is_dense = message.is_dense();
+        return result;
+    }
+
+    provizio::contained_odometry to_contained_odometry(const nav_msgs::msg::Odometry &message)
+    {
+        provizio::contained_odometry result;
+        result.header = to_contained_header(message.header());
+        result.child_frame_id = message.child_frame_id();
+        result.pose = to_contained_pose_with_covariance(message.pose());
+        result.twist = to_contained_twist_with_covariance(message.twist());
         return result;
     }
 } // namespace provizio

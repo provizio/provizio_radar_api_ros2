@@ -1,6 +1,7 @@
 #ifndef PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINED_TYPES
 #define PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINED_TYPES
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -39,6 +40,54 @@ namespace provizio
         bool is_bigendian;
         bool is_dense;
     };
+
+    struct contained_vector3
+    {
+        double x;
+        double y;
+        double z;
+    };
+
+    struct contained_quaternion
+    {
+        double x;
+        double y;
+        double z;
+        double w;
+    };
+
+    struct contained_pose
+    {
+        contained_vector3 position;
+        contained_quaternion orientation;
+    };
+
+    struct contained_pose_with_covariance
+    {
+        contained_pose pose;
+        std::array<double, 36> covariance;
+    };
+
+    struct contained_twist
+    {
+        contained_vector3 linear;
+        contained_vector3 angular;
+    };
+
+    struct contained_twist_with_covariance
+    {
+        contained_twist twist;
+        std::array<double, 36> covariance;
+    };
+
+    struct contained_odometry
+    {
+        contained_header header;
+        std::string child_frame_id;
+        contained_pose_with_covariance pose;
+        contained_twist_with_covariance twist;
+    };
+
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINED_TYPES

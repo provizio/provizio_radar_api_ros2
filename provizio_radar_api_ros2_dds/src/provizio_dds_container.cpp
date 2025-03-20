@@ -2,10 +2,10 @@
 #include <link.h>
 #include <stdexcept>
 
-#ifndef _GNU_SOURCE
+#ifndef SRC_PROVIZIO_DDS_CONTAINER
 // To make sure dlmopen is available
-#define _GNU_SOURCE
-#endif _GNU_SOURCE
+#define SRC_PROVIZIO_DDS_CONTAINER
+#endif // SRC_PROVIZIO_DDS_CONTAINER
 #include <dlfcn.h>
 
 #include "provizio_radar_api_ros2/provizio_dds_contained.h"
@@ -101,6 +101,15 @@ namespace provizio
         on_message_function<provizio::contained_pointcloud2> on_message, on_message_context context)
     {
         get_contained_function(provizio_dds_contained_make_subscriber_pointcloud2, the_function);
+        return (*the_function)(domain_participant, topic_name, on_message, context);
+    }
+
+    std::shared_ptr<void> make_dds_subscriber_odometry(const std::shared_ptr<void> &domain_participant,
+                                                       const std::string &topic_name,
+                                                       on_message_function<provizio::contained_odometry> on_message,
+                                                       on_message_context context)
+    {
+        get_contained_function(provizio_dds_contained_make_subscriber_odometry, the_function);
         return (*the_function)(domain_participant, topic_name, on_message, context);
     }
 } // namespace provizio
