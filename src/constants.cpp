@@ -8,4 +8,5 @@ namespace provizio
     const std::string entities_camera_ros2_topic_name = "/provizio/entities_camera";  // NOLINT: Never throws
     const std::string entities_fusion_ros2_topic_name = "/provizio/entities_fusion";  // NOLINT: Never throws
     const std::string radar_odometry_ros2_topic_name = "/provizio/radar_odometry";    // NOLINT: Never throws
+    const std::string camera_ros2_topic_name = "/provizio/camera_raw";                // NOLINT: Never throws
 } // namespace provizio

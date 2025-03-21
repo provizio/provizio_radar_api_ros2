@@ -88,6 +88,16 @@ namespace provizio
         contained_twist_with_covariance twist;
     };
 
+    struct contained_image
+    {
+        contained_header header;
+        std::uint32_t height;
+        std::uint32_t width;
+        std::string encoding;
+        std::uint8_t is_bigendian;
+        std::uint32_t step;
+        std::vector<std::uint8_t> data;
+    };
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINED_TYPES

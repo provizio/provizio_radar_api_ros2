@@ -16,6 +16,7 @@
 #define PROVIZIO_RADAR_API_ROS2_RADAR_API_ROS2_WRAPPER_DDS
 
 #include <nav_msgs/msg/odometry.hpp>
+#include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
 #include "provizio_radar_api_ros2/constants.h"
@@ -42,6 +43,7 @@ namespace provizio
         static void on_entities_camera(void *context, contained_pointcloud2 message);
         static void on_entities_fusion(void *context, contained_pointcloud2 message);
         static void on_radar_odometry(void *context, contained_odometry message);
+        static void on_camera(void *context, contained_image message);
 
         const rclcpp::QoS default_ros2_qos{2};
         const std::uint32_t dds_domain_id = 0; // TODO: Read from config, if specified
@@ -54,12 +56,15 @@ namespace provizio
         std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> ros2_entities_camera_publisher;
         std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> ros2_entities_fusion_publisher;
         std::shared_ptr<rclcpp::Publisher<nav_msgs::msg::Odometry>> ros2_radar_odometry_publisher;
+        std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::Image>> ros2_camera_publisher;
+
         std::shared_ptr<void> dds_radar_pc_subscriber;
         std::shared_ptr<void> dds_radar_pc_sr_subscriber;
         std::shared_ptr<void> dds_entities_radar_subscriber;
         std::shared_ptr<void> dds_entities_camera_subscriber;
         std::shared_ptr<void> dds_entities_fusion_subscriber;
         std::shared_ptr<void> dds_radar_odometry_subscriber;
+        std::shared_ptr<void> dds_camera_subscriber;
     };
 
     template <typename node_t> bool radar_api_ros2_wrapper_dds<node_t>::activate()
@@ -87,6 +92,8 @@ namespace provizio
             entities_fusion_ros2_topic_name, default_ros2_qos);
         ros2_radar_odometry_publisher =
             node.template create_publisher<nav_msgs::msg::Odometry>(radar_odometry_ros2_topic_name, default_ros2_qos);
+        ros2_camera_publisher =
+            node.template create_publisher<sensor_msgs::msg::Image>(camera_ros2_topic_name, default_ros2_qos);
 
         // Create subscribers
         // TODO: Read topic names from config, if specified
@@ -102,6 +109,8 @@ namespace provizio
             dds_domain_participant, entities_fusion_dds_topic_name, &on_entities_fusion, this);
         dds_radar_odometry_subscriber = make_dds_subscriber_odometry(
             dds_domain_participant, radar_odometry_dds_topic_name, &on_radar_odometry, this);
+        dds_camera_subscriber =
+            make_dds_subscriber_image(dds_domain_participant, camera_dds_topic_name, &on_camera, this);
 
         return true;
     }
@@ -121,6 +130,7 @@ namespace provizio
         dds_entities_camera_subscriber.reset();
         dds_entities_fusion_subscriber.reset();
         dds_radar_odometry_subscriber.reset();
+        dds_camera_subscriber.reset();
 
         // Destroy the publishers
         ros2_radar_pc_publisher.reset();
@@ -129,6 +139,7 @@ namespace provizio
         ros2_entities_camera_publisher.reset();
         ros2_entities_fusion_publisher.reset();
         ros2_radar_odometry_publisher.reset();
+        ros2_camera_publisher.reset();
 
         // dds_domain_participant
         dds_domain_participant.reset();
@@ -205,6 +216,18 @@ namespace provizio
         if (publisher != nullptr)
         {
             publisher->publish(to_ros2_odometry(std::move(message)));
+        }
+    }
+
+    template <typename node_t>
+    void radar_api_ros2_wrapper_dds<node_t>::on_camera(void *context, contained_image message)
+    {
+        auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
+                             ->ros2_camera_publisher; // To make sure it can't be destroyed by another thread
+                                                      // during this call
+        if (publisher != nullptr)
+        {
+            publisher->publish(to_ros2_image(std::move(message)));
         }
     }
 } // namespace provizio

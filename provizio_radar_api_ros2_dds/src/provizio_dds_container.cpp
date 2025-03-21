@@ -112,4 +112,13 @@ namespace provizio
         get_contained_function(provizio_dds_contained_make_subscriber_odometry, the_function);
         return (*the_function)(domain_participant, topic_name, on_message, context);
     }
+
+    std::shared_ptr<void> make_dds_subscriber_image(const std::shared_ptr<void> &domain_participant,
+                                                    const std::string &topic_name,
+                                                    on_message_function<provizio::contained_image> on_message,
+                                                    on_message_context context)
+    {
+        get_contained_function(provizio_dds_contained_make_subscriber_image, the_function);
+        return (*the_function)(domain_participant, topic_name, on_message, context);
+    }
 } // namespace provizio

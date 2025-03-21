@@ -8,4 +8,5 @@ namespace provizio
     const std::string entities_camera_dds_topic_name = "rt/provizio_entities_camera";  // NOLINT: Never throws
     const std::string entities_fusion_dds_topic_name = "rt/provizio_entities_fusion";  // NOLINT: Never throws
     const std::string radar_odometry_dds_topic_name = "rt/provizio_radar_odometry";    // NOLINT: Never throws
+    const std::string camera_dds_topic_name = "rt/provizio_camera";                    // NOLINT: Never throws
 } // namespace provizio

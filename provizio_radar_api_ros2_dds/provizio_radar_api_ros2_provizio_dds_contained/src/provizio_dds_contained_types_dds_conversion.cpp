@@ -114,4 +114,17 @@ namespace provizio
         result.twist = to_contained_twist_with_covariance(message.twist());
         return result;
     }
+
+    provizio::contained_image to_contained_image(const sensor_msgs::msg::Image &message)
+    {
+        provizio::contained_image result;
+        result.header = to_contained_header(message.header());
+        result.height = message.height();
+        result.width = message.width();
+        result.encoding = message.encoding();
+        result.is_bigendian = message.is_bigendian();
+        result.step = message.step();
+        result.data = message.data();
+        return result;
+    }
 } // namespace provizio

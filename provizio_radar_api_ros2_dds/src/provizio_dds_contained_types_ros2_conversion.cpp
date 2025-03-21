@@ -119,4 +119,17 @@ namespace provizio
         result.twist = to_ros2_twist_with_covariance(std::move(message.twist));
         return result;
     }
+
+    sensor_msgs::msg::Image to_ros2_image(provizio::contained_image message)
+    {
+        sensor_msgs::msg::Image result;
+        result.header = to_ros2_header(std::move(message.header));
+        result.height = message.height;
+        result.width = message.width;
+        result.encoding = std::move(message.encoding);
+        result.is_bigendian = message.is_bigendian;
+        result.step = message.step;
+        result.data = std::move(message.data);
+        return result;
+    }
 } // namespace provizio
