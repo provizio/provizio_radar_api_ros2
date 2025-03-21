@@ -37,12 +37,14 @@ namespace provizio
             std::vector<provizio::contained_point_field> fields)
         {
             std::vector<sensor_msgs::msg::PointField> result;
+            result.reserve(fields.size());
             std::transform(std::make_move_iterator(fields.begin()), std::make_move_iterator(fields.end()),
                            std::back_inserter(result), to_ros2_point_field);
             return result;
         }
 
-        template <typename ros2_vector3_type> ros2_vector3_type to_ros2_vector3(const contained_vector3 &vector3)
+        template <typename ros2_vector3_type, typename contained_vector3_type>
+        ros2_vector3_type to_ros2_vector3(const contained_vector3_type &vector3)
         {
             ros2_vector3_type result;
             result.x = vector3.x;
@@ -132,4 +134,41 @@ namespace provizio
         result.data = std::move(message.data);
         return result;
     }
+
+    geometry_msgs::msg::Polygon to_ros2_polygon(const provizio::contained_polygon &polygon)
+    {
+        geometry_msgs::msg::Polygon result;
+        result.points.reserve(polygon.points.size());
+        std::transform(polygon.points.begin(), polygon.points.end(), std::back_inserter(result.points),
+                       to_ros2_vector3<geometry_msgs::msg::Point32, provizio::contained_point32>);
+        return result;
+    }
+
+    geometry_msgs::msg::PolygonStamped to_ros2_polygon_stamped(
+        const provizio::contained_polygon_instance_stamped &message)
+    {
+        geometry_msgs::msg::PolygonStamped result;
+        result.header = to_ros2_header(std::move(message.header));
+        result.polygon = to_ros2_polygon(message.polygon.polygon);
+        return result;
+    }
+
+#if PROVIZIO_POLYGON_INSTANCE_AVAILABLE
+    geometry_msgs::msg::PolygonInstance to_ros2_polygon_instance(const provizio::contained_polygon_instance &message)
+    {
+        geometry_msgs::msg::PolygonInstance result;
+        result.polygon = to_ros2_polygon(message.polygon);
+        result.id = message.id;
+        return result;
+    }
+
+    geometry_msgs::msg::PolygonInstanceStamped to_ros2_polygon_instance_stamped(
+        const provizio::contained_polygon_instance_stamped &message)
+    {
+        geometry_msgs::msg::PolygonStamped result;
+        result.header = to_ros2_header(std::move(message.header));
+        result.polygon = to_ros2_polygon_instance(message.polygon);
+        return result;
+    }
+#endif
 } // namespace provizio

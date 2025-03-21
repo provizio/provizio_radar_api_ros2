@@ -98,6 +98,30 @@ namespace provizio
         std::uint32_t step;
         std::vector<std::uint8_t> data;
     };
+
+    struct contained_point32
+    {
+        float x;
+        float y;
+        float z;
+    };
+
+    struct contained_polygon
+    {
+        std::vector<contained_point32> points;
+    };
+
+    struct contained_polygon_instance
+    {
+        contained_polygon polygon;
+        std::int64_t id;
+    };
+
+    struct contained_polygon_instance_stamped
+    {
+        contained_header header;
+        contained_polygon_instance polygon;
+    };
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINED_TYPES

@@ -40,12 +40,14 @@ namespace provizio
             const std::vector<sensor_msgs::msg::PointField> &fields)
         {
             std::vector<provizio::contained_point_field> result;
+            result.reserve(fields.size());
             std::transform(fields.begin(), fields.end(), std::back_inserter(result), to_contained_point_field);
             return result;
         }
 
-        template <typename dds_vector_type> // supports both Point and Vector3 types
-        contained_vector3 to_contained_vector3(const dds_vector_type &vector)
+        template <typename dds_vector_type,
+                  typename contained_vector_type = contained_vector3> // supports both Point and Vector3 types
+        contained_vector_type to_contained_vector3(const dds_vector_type &vector)
         {
             return {vector.x(), vector.y(), vector.z()};
         }
@@ -125,6 +127,34 @@ namespace provizio
         result.is_bigendian = message.is_bigendian();
         result.step = message.step();
         result.data = message.data();
+        return result;
+    }
+
+    provizio::contained_polygon to_contained_polygon(const geometry_msgs::msg::Polygon &polygon)
+    {
+        provizio::contained_polygon result;
+        const auto &points = polygon.points();
+        result.points.reserve(points.size());
+        std::transform(points.begin(), points.end(), std::back_inserter(result.points),
+                       to_contained_vector3<geometry_msgs::msg::Point32, contained_point32>);
+        return result;
+    }
+
+    provizio::contained_polygon_instance to_contained_polygon_instance(
+        const geometry_msgs::msg::PolygonInstance &message)
+    {
+        provizio::contained_polygon_instance result;
+        result.polygon = to_contained_polygon(message.polygon());
+        result.id = message.id();
+        return result;
+    }
+
+    provizio::contained_polygon_instance_stamped to_contained_polygon_instance_stamped(
+        const geometry_msgs::msg::PolygonInstanceStamped &message)
+    {
+        provizio::contained_polygon_instance_stamped result;
+        result.header = to_contained_header(message.header());
+        result.polygon = to_contained_polygon_instance(message.polygon());
         return result;
     }
 } // namespace provizio
