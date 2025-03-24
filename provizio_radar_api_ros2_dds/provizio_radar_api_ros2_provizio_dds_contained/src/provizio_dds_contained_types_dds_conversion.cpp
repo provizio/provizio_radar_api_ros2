@@ -157,4 +157,18 @@ namespace provizio
         result.polygon = to_contained_polygon_instance(message.polygon());
         return result;
     }
+
+    provizio::contained_radar_info to_contained_radar_info(const provizio::msg::radar_info &message)
+    {
+        provizio::contained_radar_info result;
+        result.header = to_contained_header(message.header());
+        result.serial_number = message.serial_number();
+        result.current_range = static_cast<std::int8_t>(message.current_range());
+        const auto &supported_ranges = message.supported_ranges();
+        result.supported_ranges.reserve(supported_ranges.size());
+        std::transform(supported_ranges.begin(), supported_ranges.end(), std::back_inserter(result.supported_ranges),
+                       [](const provizio::msg::radar_range range) { return static_cast<std::int8_t>(range); });
+        result.current_multiplexing_mode = 0; // TODO(iivanov): Use actual multiplexing mode when it's available
+        return result;
+    }
 } // namespace provizio

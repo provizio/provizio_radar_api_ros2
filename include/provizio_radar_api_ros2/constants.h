@@ -14,6 +14,7 @@ namespace provizio
     extern const std::string camera_ros2_topic_name;
     extern const std::string radar_freespace_ros2_topic_name;
     extern const std::string radar_freespace_ros2_instance_topic_name;
+    extern const std::string radar_info_ros2_topic_name;
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_CONSTANTS

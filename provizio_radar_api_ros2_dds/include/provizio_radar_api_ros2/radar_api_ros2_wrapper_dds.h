@@ -16,6 +16,7 @@
 #define PROVIZIO_RADAR_API_ROS2_RADAR_API_ROS2_WRAPPER_DDS
 
 #include <nav_msgs/msg/odometry.hpp>
+#include <provizio_radar_api_ros2/msg/radar_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
@@ -51,6 +52,7 @@ namespace provizio
         static void on_radar_odometry(void *context, contained_odometry message);
         static void on_camera(void *context, contained_image message);
         static void on_radar_freespace(void *context, contained_polygon_instance_stamped message);
+        static void on_radar_info(void *context, contained_radar_info message);
 
         const rclcpp::QoS default_ros2_qos{2};
         const std::uint32_t dds_domain_id = 0; // TODO: Read from config, if specified
@@ -69,6 +71,7 @@ namespace provizio
         std::shared_ptr<rclcpp::Publisher<geometry_msgs::msg::PolygonInstanceStamped>>
             ros2_radar_freespace_instance_publisher;
 #endif
+        std::shared_ptr<rclcpp::Publisher<provizio_radar_api_ros2::msg::RadarInfo>> ros2_radar_info_publisher;
 
         std::shared_ptr<void> dds_radar_pc_subscriber;
         std::shared_ptr<void> dds_radar_pc_sr_subscriber;
@@ -78,6 +81,7 @@ namespace provizio
         std::shared_ptr<void> dds_radar_odometry_subscriber;
         std::shared_ptr<void> dds_camera_subscriber;
         std::shared_ptr<void> dds_radar_freespace_subscriber;
+        std::shared_ptr<void> dds_radar_info_subscriber;
     };
 
     template <typename node_t> bool radar_api_ros2_wrapper_dds<node_t>::activate()
@@ -114,6 +118,8 @@ namespace provizio
             node.template create_publisher<geometry_msgs::msg::PolygonInstanceStamped>(
                 radar_freespace_instance_ros2_topic_name, default_ros2_qos);
 #endif
+        ros2_radar_info_publisher = node.template create_publisher<provizio_radar_api_ros2::msg::RadarInfo>(
+            radar_info_ros2_topic_name, default_ros2_qos);
 
         // Create subscribers
         // TODO: Read topic names from config, if specified
@@ -133,6 +139,8 @@ namespace provizio
             make_dds_subscriber_image(dds_domain_participant, camera_dds_topic_name, &on_camera, this);
         dds_radar_freespace_subscriber = make_dds_subscriber_polygon_instance_stamped(
             dds_domain_participant, radar_freespace_dds_topic_name, &on_radar_freespace, this);
+        dds_radar_info_subscriber =
+            make_dds_subscriber_radar_info(dds_domain_participant, radar_info_dds_topic_name, &on_radar_info, this);
 
         return true;
     }
@@ -278,6 +286,18 @@ namespace provizio
             instance_publisher->publish(to_ros2_polygon_instance_stamped(message));
         }
 #endif
+    }
+
+    template <typename node_t>
+    void radar_api_ros2_wrapper_dds<node_t>::on_radar_info(void *context, contained_radar_info message)
+    {
+        auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
+                             ->ros2_radar_info_publisher; // To make sure it can't be destroyed by another thread
+                                                          // during this call
+        if (publisher != nullptr)
+        {
+            publisher->publish(to_ros2_radar_info(std::move(message)));
+        }
     }
 } // namespace provizio
 

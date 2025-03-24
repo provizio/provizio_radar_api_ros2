@@ -5,6 +5,7 @@
 
 #include "geometry_msgs/msg/PolygonInstanceStamped.h"
 #include "nav_msgs/msg/Odometry.h"
+#include "provizio/msg/radar_info.h"
 #include "sensor_msgs/msg/Image.h"
 #include "sensor_msgs/msg/PointCloud2.h"
 
@@ -17,6 +18,7 @@ namespace provizio
     provizio::contained_image to_contained_image(const sensor_msgs::msg::Image &message);
     provizio::contained_polygon_instance_stamped to_contained_polygon_instance_stamped(
         const geometry_msgs::msg::PolygonInstanceStamped &message);
+    provizio::contained_radar_info to_contained_radar_info(const provizio::msg::radar_info &message);
 } // namespace provizio
 
 #endif // SRC_PROVIZIO_DDS_CONTAINED_TYPES_DDS_CONVERSION

@@ -30,6 +30,9 @@ extern "C"
         const std::shared_ptr<void> &domain_participant, const std::string &topic_name,
         provizio::on_message_function<provizio::contained_polygon_instance_stamped> on_message,
         provizio::on_message_context context);
+    std::shared_ptr<void> provizio_dds_contained_make_subscriber_radar_info(
+        const std::shared_ptr<void> &domain_participant, const std::string &topic_name,
+        provizio::on_message_function<provizio::contained_radar_info> on_message, provizio::on_message_context context);
 }
 
 #endif // PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINED

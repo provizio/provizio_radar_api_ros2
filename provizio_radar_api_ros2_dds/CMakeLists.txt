@@ -1,10 +1,11 @@
-add_subdirectory(provizio_radar_api_ros2_provizio_dds_contained)
+add_subdirectory(${PROJECT}_provizio_dds_contained)
 
-add_library(provizio_radar_api_ros2_dds STATIC
+add_library(${PROJECT}_dds STATIC
     src/provizio_dds_container.cpp
     src/constants_dds.cpp
     src/provizio_dds_contained_types_ros2_conversion.cpp
 )
-target_include_directories(provizio_radar_api_ros2_dds PUBLIC include provizio_radar_api_ros2_provizio_dds_contained/include)
-add_dependencies(provizio_radar_api_ros2_dds provizio_radar_api_ros2_provizio_dds_contained)
-ament_target_dependencies(provizio_radar_api_ros2_dds rclcpp sensor_msgs nav_msgs)
+target_include_directories(${PROJECT}_dds PUBLIC include ${PROJECT}_provizio_dds_contained/include)
+add_dependencies(${PROJECT}_dds ${PROJECT}_provizio_dds_contained)
+ament_target_dependencies(${PROJECT}_dds rclcpp sensor_msgs nav_msgs)
+target_link_libraries(${PROJECT}_dds ${TYPESUPPORT})

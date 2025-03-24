@@ -13,6 +13,7 @@ namespace provizio
     extern const std::string radar_odometry_dds_topic_name;
     extern const std::string camera_dds_topic_name;
     extern const std::string radar_freespace_dds_topic_name;
+    extern const std::string radar_info_dds_topic_name;
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_CONSTANTS_DDS

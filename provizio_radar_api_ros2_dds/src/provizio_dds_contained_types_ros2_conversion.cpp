@@ -148,7 +148,7 @@ namespace provizio
         const provizio::contained_polygon_instance_stamped &message)
     {
         geometry_msgs::msg::PolygonStamped result;
-        result.header = to_ros2_header(std::move(message.header));
+        result.header = to_ros2_header(message.header);
         result.polygon = to_ros2_polygon(message.polygon.polygon);
         return result;
     }
@@ -166,9 +166,20 @@ namespace provizio
         const provizio::contained_polygon_instance_stamped &message)
     {
         geometry_msgs::msg::PolygonStamped result;
-        result.header = to_ros2_header(std::move(message.header));
+        result.header = to_ros2_header(message.header);
         result.polygon = to_ros2_polygon_instance(message.polygon);
         return result;
     }
 #endif
+
+    provizio_radar_api_ros2::msg::RadarInfo to_ros2_radar_info(provizio::contained_radar_info message)
+    {
+        provizio_radar_api_ros2::msg::RadarInfo result;
+        result.header = to_ros2_header(std::move(message.header));
+        result.serial_number = std::move(message.serial_number);
+        result.current_range = message.current_range;
+        result.supported_ranges = std::move(message.supported_ranges);
+        result.current_multiplexing_mode = message.current_multiplexing_mode;
+        return result;
+    }
 } // namespace provizio

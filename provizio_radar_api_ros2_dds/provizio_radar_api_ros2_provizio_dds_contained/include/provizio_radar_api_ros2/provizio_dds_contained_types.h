@@ -122,6 +122,15 @@ namespace provizio
         contained_header header;
         contained_polygon_instance polygon;
     };
+
+    struct contained_radar_info
+    {
+        contained_header header;
+        std::string serial_number;
+        std::int8_t current_range;
+        std::vector<std::int8_t> supported_ranges;
+        std::int8_t current_multiplexing_mode;
+    };
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINED_TYPES

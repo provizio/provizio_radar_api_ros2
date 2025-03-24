@@ -129,4 +129,13 @@ namespace provizio
         get_contained_function(provizio_dds_contained_make_subscriber_polygon_instance_stamped, the_function);
         return (*the_function)(domain_participant, topic_name, on_message, context);
     }
+
+    std::shared_ptr<void> make_dds_subscriber_radar_info(const std::shared_ptr<void> &domain_participant,
+                                                         const std::string &topic_name,
+                                                         on_message_function<provizio::contained_radar_info> on_message,
+                                                         on_message_context context)
+    {
+        get_contained_function(provizio_dds_contained_make_subscriber_radar_info, the_function);
+        return (*the_function)(domain_participant, topic_name, on_message, context);
+    }
 } // namespace provizio

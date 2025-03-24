@@ -10,4 +10,5 @@ namespace provizio
     const std::string radar_odometry_dds_topic_name = "rt/provizio_radar_odometry";    // NOLINT: Never throws
     const std::string camera_dds_topic_name = "rt/provizio_camera";                    // NOLINT: Never throws
     const std::string radar_freespace_dds_topic_name = "rt/provizio_freespace_poly";   // NOLINT: Never throws
+    const std::string radar_info_dds_topic_name = "rt/provizio_radar_info";            // NOLINT: Never throws
 } // namespace provizio
