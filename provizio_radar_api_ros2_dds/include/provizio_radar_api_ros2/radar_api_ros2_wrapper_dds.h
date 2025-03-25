@@ -45,14 +45,76 @@ namespace provizio
       public:
         radar_api_ros2_wrapper_dds(node_t &node) : node(node)
         {
+            constexpr bool enabled_by_default = true;
+
+            // Declare all of the Node parameters
+            node.declare_parameter(dds_domain_id_param, static_cast<int>(default_dds_domain_id));
+            node.declare_parameter(publish_radar_pc_param, enabled_by_default);
+            node.declare_parameter(publish_radar_pc_sr_param, enabled_by_default);
+            node.declare_parameter(publish_entities_radar_param, enabled_by_default);
+            node.declare_parameter(publish_entities_camera_param, enabled_by_default);
+            node.declare_parameter(publish_entities_fusion_param, enabled_by_default);
+            node.declare_parameter(publish_radar_odometry_param, enabled_by_default);
+            node.declare_parameter(publish_camera_param, enabled_by_default);
+            node.declare_parameter(publish_radar_freespace_param, enabled_by_default);
+#if PROVIZIO_POLYGON_INSTANCE_AVAILABLE
+            node.declare_parameter(publish_radar_freespace_instance_param, enabled_by_default);
+#endif
+            node.declare_parameter(publish_radar_info_param, enabled_by_default);
+            node.declare_parameter(serve_set_radar_range_param, enabled_by_default);
+            node.declare_parameter(radar_pc_ros2_topic_name_param, default_radar_pc_ros2_topic_name);
+            node.declare_parameter(radar_pc_sr_ros2_topic_name_param, default_radar_pc_sr_ros2_topic_name);
+            node.declare_parameter(entities_radar_ros2_topic_name_param, default_entities_radar_ros2_topic_name);
+            node.declare_parameter(entities_camera_ros2_topic_name_param, default_entities_camera_ros2_topic_name);
+            node.declare_parameter(entities_fusion_ros2_topic_name_param, default_entities_fusion_ros2_topic_name);
+            node.declare_parameter(radar_odometry_ros2_topic_name_param, default_radar_odometry_ros2_topic_name);
+            node.declare_parameter(camera_ros2_topic_name_param, default_camera_ros2_topic_name);
+            node.declare_parameter(radar_freespace_ros2_topic_name_param, default_radar_freespace_ros2_topic_name);
+#if PROVIZIO_POLYGON_INSTANCE_AVAILABLE
+            node.declare_parameter(radar_freespace_ros2_instance_topic_name_param,
+                                   default_radar_freespace_ros2_instance_topic_name);
+#endif
+            node.declare_parameter(radar_info_ros2_topic_name_param, default_radar_info_ros2_topic_name);
+            node.declare_parameter(set_radar_range_ros2_service_name_param, default_set_radar_range_ros2_service_name);
         }
 
         bool activate();
         bool deactivate();
 
       private:
+        // Constants
         static constexpr std::chrono::seconds max_time_to_set_radar_range{30};
+        static constexpr std::uint32_t default_dds_domain_id = 0;
+        const rclcpp::QoS default_ros2_qos{2};
+        const std::string dds_domain_id_param = "provizio_dds_domain_id";
+        const std::string publish_radar_pc_param = "publish_radar_pc";
+        const std::string publish_radar_pc_sr_param = "publish_radar_pc_sr";
+        const std::string publish_entities_radar_param = "publish_entities_radar";
+        const std::string publish_entities_camera_param = "publish_entities_camera";
+        const std::string publish_entities_fusion_param = "publish_entities_fusion";
+        const std::string publish_radar_odometry_param = "publish_radar_odometry";
+        const std::string publish_camera_param = "publish_camera";
+        const std::string publish_radar_freespace_param = "publish_radar_freespace";
+#if PROVIZIO_POLYGON_INSTANCE_AVAILABLE
+        const std::string publish_radar_freespace_instance_param = "publish_radar_freespace_instance";
+#endif
+        const std::string publish_radar_info_param = "publish_radar_info";
+        const std::string serve_set_radar_range_param = "serve_set_radar_range";
+        const std::string radar_pc_ros2_topic_name_param = "radar_pc_topic";
+        const std::string radar_pc_sr_ros2_topic_name_param = "radar_pc_sr_topic";
+        const std::string entities_radar_ros2_topic_name_param = "entities_radar_topic";
+        const std::string entities_camera_ros2_topic_name_param = "entities_camera_topic";
+        const std::string entities_fusion_ros2_topic_name_param = "entities_fusion_topic";
+        const std::string radar_odometry_ros2_topic_name_param = "radar_odometry_topic";
+        const std::string camera_ros2_topic_name_param = "camera_topic";
+        const std::string radar_freespace_ros2_topic_name_param = "radar_freespace_topic";
+#if PROVIZIO_POLYGON_INSTANCE_AVAILABLE
+        const std::string radar_freespace_ros2_instance_topic_name_param = "radar_freespace_instance_topic";
+#endif
+        const std::string radar_info_ros2_topic_name_param = "radar_info_topic";
+        const std::string set_radar_range_ros2_service_name_param = "set_radar_range_service";
 
+        // Functions
         static void on_radar_point_cloud(void *context, contained_pointcloud2 message);
         static void on_radar_point_cloud_sr(void *context, contained_pointcloud2 message);
         static void on_entities_radar(void *context, contained_pointcloud2 message);
@@ -66,9 +128,7 @@ namespace provizio
             const std::shared_ptr<provizio_radar_api_ros2::srv::SetRadarRange::Request> request,
             std::shared_ptr<provizio_radar_api_ros2::srv::SetRadarRange::Response> response);
 
-        const rclcpp::QoS default_ros2_qos{2};
-        const std::uint32_t dds_domain_id = 0; // TODO: Read from config, if specified
-
+        // Variables
         node_t &node;
         std::shared_ptr<void> dds_domain_participant;
         std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> ros2_radar_pc_publisher;
@@ -113,61 +173,117 @@ namespace provizio
         }
 
         // dds_domain_participant
-        dds_domain_participant = make_dds_domain_participant(dds_domain_id);
+        dds_domain_participant =
+            make_dds_domain_participant(static_cast<std::uint32_t>(node.get_parameter(dds_domain_id_param).as_int()));
 
-        // Create publishers first, so any subscriber can re-publish straight away
-        // TODO: Read topic names from config, if specified
-        ros2_radar_pc_publisher =
-            node.template create_publisher<sensor_msgs::msg::PointCloud2>(radar_pc_ros2_topic_name, default_ros2_qos);
-        ros2_radar_pc_sr_publisher = node.template create_publisher<sensor_msgs::msg::PointCloud2>(
-            radar_pc_sr_ros2_topic_name, default_ros2_qos);
-        ros2_entities_radar_publisher = node.template create_publisher<sensor_msgs::msg::PointCloud2>(
-            entities_radar_ros2_topic_name, default_ros2_qos);
-        ros2_entities_camera_publisher = node.template create_publisher<sensor_msgs::msg::PointCloud2>(
-            entities_camera_ros2_topic_name, default_ros2_qos);
-        ros2_entities_fusion_publisher = node.template create_publisher<sensor_msgs::msg::PointCloud2>(
-            entities_fusion_ros2_topic_name, default_ros2_qos);
-        ros2_radar_odometry_publisher =
-            node.template create_publisher<nav_msgs::msg::Odometry>(radar_odometry_ros2_topic_name, default_ros2_qos);
-        ros2_camera_publisher =
-            node.template create_publisher<sensor_msgs::msg::Image>(camera_ros2_topic_name, default_ros2_qos);
-        ros2_radar_freespace_publisher = node.template create_publisher<geometry_msgs::msg::PolygonStamped>(
-            radar_freespace_ros2_topic_name, default_ros2_qos);
+        // Create publishers first and then subscribers so they can re-publish straight away
+
+        if (node.get_parameter(publish_radar_pc_param).as_bool())
+        {
+            ros2_radar_pc_publisher = node.template create_publisher<sensor_msgs::msg::PointCloud2>(
+                node.get_parameter(radar_pc_ros2_topic_name_param).as_string(), default_ros2_qos);
+            dds_radar_pc_subscriber = make_dds_subscriber_pointcloud2(dds_domain_participant, radar_pc_dds_topic_name,
+                                                                      &on_radar_point_cloud, this);
+        }
+
+        if (node.get_parameter(publish_radar_pc_sr_param).as_bool())
+        {
+            ros2_radar_pc_sr_publisher = node.template create_publisher<sensor_msgs::msg::PointCloud2>(
+                node.get_parameter(radar_pc_sr_ros2_topic_name_param).as_string(), default_ros2_qos);
+            dds_radar_pc_sr_subscriber = make_dds_subscriber_pointcloud2(
+                dds_domain_participant, radar_pc_sr_dds_topic_name, &on_radar_point_cloud_sr, this);
+        }
+
+        if (node.get_parameter(publish_entities_radar_param).as_bool())
+        {
+            ros2_entities_radar_publisher = node.template create_publisher<sensor_msgs::msg::PointCloud2>(
+                node.get_parameter(entities_radar_ros2_topic_name_param).as_string(), default_ros2_qos);
+            dds_entities_radar_subscriber = make_dds_subscriber_pointcloud2(
+                dds_domain_participant, entities_radar_dds_topic_name, &on_entities_radar, this);
+        }
+
+        if (node.get_parameter(publish_entities_camera_param).as_bool())
+        {
+            ros2_entities_camera_publisher = node.template create_publisher<sensor_msgs::msg::PointCloud2>(
+                node.get_parameter(entities_camera_ros2_topic_name_param).as_string(), default_ros2_qos);
+            dds_entities_camera_subscriber = make_dds_subscriber_pointcloud2(
+                dds_domain_participant, entities_camera_dds_topic_name, &on_entities_camera, this);
+        }
+
+        if (node.get_parameter(publish_entities_fusion_param).as_bool())
+        {
+            ros2_entities_fusion_publisher = node.template create_publisher<sensor_msgs::msg::PointCloud2>(
+                node.get_parameter(entities_fusion_ros2_topic_name_param).as_string(), default_ros2_qos);
+            dds_entities_fusion_subscriber = make_dds_subscriber_pointcloud2(
+                dds_domain_participant, entities_fusion_dds_topic_name, &on_entities_fusion, this);
+        }
+
+        if (node.get_parameter(publish_radar_odometry_param).as_bool())
+        {
+            ros2_radar_odometry_publisher = node.template create_publisher<nav_msgs::msg::Odometry>(
+                node.get_parameter(radar_odometry_ros2_topic_name_param).as_string(), default_ros2_qos);
+            dds_radar_odometry_subscriber = make_dds_subscriber_odometry(
+                dds_domain_participant, radar_odometry_dds_topic_name, &on_radar_odometry, this);
+        }
+
+        if (node.get_parameter(publish_camera_param).as_bool())
+        {
+            ros2_camera_publisher = node.template create_publisher<sensor_msgs::msg::Image>(
+                node.get_parameter(camera_ros2_topic_name_param).as_string(), default_ros2_qos);
+            dds_camera_subscriber =
+                make_dds_subscriber_image(dds_domain_participant, camera_dds_topic_name, &on_camera, this);
+        }
+
+        if (node.get_parameter(publish_radar_freespace_param).as_bool())
+        {
+            ros2_radar_freespace_publisher = node.template create_publisher<geometry_msgs::msg::PolygonStamped>(
+                node.get_parameter(radar_freespace_ros2_topic_name_param).as_string(), default_ros2_qos);
+        }
 #if PROVIZIO_POLYGON_INSTANCE_AVAILABLE
-        ros2_radar_freespace_instance_publisher =
-            node.template create_publisher<geometry_msgs::msg::PolygonInstanceStamped>(
-                radar_freespace_instance_ros2_topic_name, default_ros2_qos);
+        if (node.get_parameter(publish_radar_freespace_instance_param).as_bool())
+        {
+            ros2_radar_freespace_instance_publisher =
+                node.template create_publisher<geometry_msgs::msg::PolygonInstanceStamped>(
+                    node.get_parameter(radar_freespace_ros2_instance_topic_name_param).as_string(), default_ros2_qos);
+        }
 #endif
-        ros2_radar_info_publisher = node.template create_publisher<provizio_radar_api_ros2::msg::RadarInfo>(
-            radar_info_ros2_topic_name, default_ros2_qos);
-        dds_set_radar_range_publisher =
-            make_dds_publisher_set_radar_range(dds_domain_participant, set_radar_range_dds_topic_name);
+        if (node.get_parameter(publish_radar_freespace_param).as_bool()
+#if PROVIZIO_POLYGON_INSTANCE_AVAILABLE
+            || node.get_parameter(publish_radar_freespace_instance_param).as_bool()
+#endif
+        )
+        {
+            // dds_radar_freespace_subscriber provides data to both ros2_radar_freespace_publisher and
+            // ros2_radar_freespace_instance_publisher
+            dds_radar_freespace_subscriber = make_dds_subscriber_polygon_instance_stamped(
+                dds_domain_participant, radar_freespace_dds_topic_name, &on_radar_freespace, this);
+        }
 
-        // Create subscribers
-        // TODO: Read topic names from config, if specified
-        dds_radar_pc_subscriber = make_dds_subscriber_pointcloud2(dds_domain_participant, radar_pc_dds_topic_name,
-                                                                  &on_radar_point_cloud, this);
-        dds_radar_pc_sr_subscriber = make_dds_subscriber_pointcloud2(dds_domain_participant, radar_pc_sr_dds_topic_name,
-                                                                     &on_radar_point_cloud_sr, this);
-        dds_entities_radar_subscriber = make_dds_subscriber_pointcloud2(
-            dds_domain_participant, entities_radar_dds_topic_name, &on_entities_radar, this);
-        dds_entities_camera_subscriber = make_dds_subscriber_pointcloud2(
-            dds_domain_participant, entities_camera_dds_topic_name, &on_entities_camera, this);
-        dds_entities_fusion_subscriber = make_dds_subscriber_pointcloud2(
-            dds_domain_participant, entities_fusion_dds_topic_name, &on_entities_fusion, this);
-        dds_radar_odometry_subscriber = make_dds_subscriber_odometry(
-            dds_domain_participant, radar_odometry_dds_topic_name, &on_radar_odometry, this);
-        dds_camera_subscriber =
-            make_dds_subscriber_image(dds_domain_participant, camera_dds_topic_name, &on_camera, this);
-        dds_radar_freespace_subscriber = make_dds_subscriber_polygon_instance_stamped(
-            dds_domain_participant, radar_freespace_dds_topic_name, &on_radar_freespace, this);
-        dds_radar_info_subscriber =
-            make_dds_subscriber_radar_info(dds_domain_participant, radar_info_dds_topic_name, &on_radar_info, this);
+        if (node.get_parameter(publish_radar_info_param).as_bool())
+        {
+            ros2_radar_info_publisher = node.template create_publisher<provizio_radar_api_ros2::msg::RadarInfo>(
+                node.get_parameter(radar_info_ros2_topic_name_param).as_string(), default_ros2_qos);
+        }
 
-        // Create services
-        ros2_set_radar_range_service = node.template create_service<provizio_radar_api_ros2::srv::SetRadarRange>(
-            set_radar_range_ros2_service_name, std::bind(&radar_api_ros2_wrapper_dds::on_set_radar_range_request, this,
-                                                         std::placeholders::_1, std::placeholders::_2));
+        if (node.get_parameter(publish_radar_info_param).as_bool() ||
+            node.get_parameter(serve_set_radar_range_param).as_bool())
+        {
+            // dds_radar_info_subscriber is used by both radar_info re-publishing and set_radar_range service
+            dds_radar_info_subscriber =
+                make_dds_subscriber_radar_info(dds_domain_participant, radar_info_dds_topic_name, &on_radar_info, this);
+        }
+
+        // Eventually, create services
+
+        if (node.get_parameter(serve_set_radar_range_param).as_bool())
+        {
+            dds_set_radar_range_publisher = make_dds_publisher_set_radar_range(
+                dds_domain_participant, node.get_parameter(set_radar_range_ros2_service_name_param).as_string());
+            ros2_set_radar_range_service = node.template create_service<provizio_radar_api_ros2::srv::SetRadarRange>(
+                node.get_parameter(set_radar_range_ros2_service_name_param).as_string(),
+                std::bind(&radar_api_ros2_wrapper_dds::on_set_radar_range_request, this, std::placeholders::_1,
+                          std::placeholders::_2));
+        }
 
         return true;
     }
@@ -230,9 +346,9 @@ namespace provizio
     template <typename node_t>
     void radar_api_ros2_wrapper_dds<node_t>::on_radar_point_cloud_sr(void *context, contained_pointcloud2 message)
     {
-        auto publisher =
-            static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
-                ->ros2_radar_pc_sr_publisher; // To make sure it can't be destroyed by another thread during this call
+        auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
+                             ->ros2_radar_pc_sr_publisher; // To make sure it can't be destroyed by another thread
+                                                           // during this call
         if (publisher != nullptr)
         {
             publisher->publish(to_ros2_pointcloud2(std::move(message)));
@@ -243,8 +359,8 @@ namespace provizio
     void radar_api_ros2_wrapper_dds<node_t>::on_entities_radar(void *context, contained_pointcloud2 message)
     {
         auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
-                             ->ros2_entities_radar_publisher; // To make sure it can't be destroyed by another thread
-                                                              // during this call
+                             ->ros2_entities_radar_publisher; // To make sure it can't be destroyed by another
+                                                              // thread during this call
         if (publisher != nullptr)
         {
             publisher->publish(to_ros2_pointcloud2(std::move(message)));
@@ -255,8 +371,8 @@ namespace provizio
     void radar_api_ros2_wrapper_dds<node_t>::on_entities_camera(void *context, contained_pointcloud2 message)
     {
         auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
-                             ->ros2_entities_camera_publisher; // To make sure it can't be destroyed by another thread
-                                                               // during this call
+                             ->ros2_entities_camera_publisher; // To make sure it can't be destroyed by another
+                                                               // thread during this call
         if (publisher != nullptr)
         {
             publisher->publish(to_ros2_pointcloud2(std::move(message)));
@@ -267,8 +383,8 @@ namespace provizio
     void radar_api_ros2_wrapper_dds<node_t>::on_entities_fusion(void *context, contained_pointcloud2 message)
     {
         auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
-                             ->ros2_entities_fusion_publisher; // To make sure it can't be destroyed by another thread
-                                                               // during this call
+                             ->ros2_entities_fusion_publisher; // To make sure it can't be destroyed by another
+                                                               // thread during this call
         if (publisher != nullptr)
         {
             publisher->publish(to_ros2_pointcloud2(std::move(message)));
@@ -279,8 +395,8 @@ namespace provizio
     void radar_api_ros2_wrapper_dds<node_t>::on_radar_odometry(void *context, contained_odometry message)
     {
         auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
-                             ->ros2_radar_odometry_publisher; // To make sure it can't be destroyed by another thread
-                                                              // during this call
+                             ->ros2_radar_odometry_publisher; // To make sure it can't be destroyed by another
+                                                              // thread during this call
         if (publisher != nullptr)
         {
             publisher->publish(to_ros2_odometry(std::move(message)));
@@ -304,8 +420,8 @@ namespace provizio
                                                                 contained_polygon_instance_stamped message)
     {
         auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
-                             ->ros2_radar_freespace_publisher; // To make sure it can't be destroyed by another thread
-                                                               // during this call
+                             ->ros2_radar_freespace_publisher; // To make sure it can't be destroyed by another
+                                                               // thread during this call
         if (publisher != nullptr)
         {
             publisher->publish(to_ros2_polygon_stamped(message));
