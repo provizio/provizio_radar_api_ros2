@@ -14,6 +14,7 @@
 
 #include <assert.h>
 
+#include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_lifecycle/lifecycle_node.hpp>
 
@@ -134,13 +135,19 @@ int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
 
+    rclcpp::executors::MultiThreadedExecutor executor;
     auto node = std::make_shared<provizio::provizio_radar_api_ros2_lifecycle_node>();
+    auto node_base_interface = node->get_node_base_interface();
+    executor.add_node(node_base_interface);
 
     RCLCPP_INFO(node->get_logger(), "provizio_radar_api_ros2_lifecycle_node started");
 
-    rclcpp::spin(node->get_node_base_interface());
+    executor.spin();
 
     RCLCPP_INFO(node->get_logger(), "provizio_radar_api_ros2_lifecycle_node finished");
+
+    executor.remove_node(node_base_interface);
+    node.reset();
 
     rclcpp::shutdown();
 

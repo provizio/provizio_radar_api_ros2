@@ -138,4 +138,18 @@ namespace provizio
         get_contained_function(provizio_dds_contained_make_subscriber_radar_info, the_function);
         return (*the_function)(domain_participant, topic_name, on_message, context);
     }
+
+    std::shared_ptr<void> make_dds_publisher_set_radar_range(const std::shared_ptr<void> &domain_participant,
+                                                             const std::string &topic_name)
+    {
+        get_contained_function(provizio_dds_contained_make_publisher_set_radar_range, the_function);
+        return (*the_function)(domain_participant, topic_name);
+    }
+
+    bool dds_publish_set_radar_range(const std::shared_ptr<void> &publisher,
+                                     provizio::contained_set_radar_range message)
+    {
+        get_contained_function(provizio_dds_contained_publish_set_radar_range, the_function);
+        return (*the_function)(publisher, std::move(message));
+    }
 } // namespace provizio

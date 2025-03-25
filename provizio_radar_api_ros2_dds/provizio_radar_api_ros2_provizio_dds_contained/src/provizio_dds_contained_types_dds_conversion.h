@@ -19,6 +19,7 @@ namespace provizio
     provizio::contained_polygon_instance_stamped to_contained_polygon_instance_stamped(
         const geometry_msgs::msg::PolygonInstanceStamped &message);
     provizio::contained_radar_info to_contained_radar_info(const provizio::msg::radar_info &message);
+    provizio::msg::set_radar_range to_dds_set_radar_range(contained_set_radar_range message);
 } // namespace provizio
 
 #endif // SRC_PROVIZIO_DDS_CONTAINED_TYPES_DDS_CONVERSION

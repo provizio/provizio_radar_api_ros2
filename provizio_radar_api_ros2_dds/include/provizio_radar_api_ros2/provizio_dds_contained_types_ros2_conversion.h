@@ -5,6 +5,7 @@
 
 #include <nav_msgs/msg/odometry.hpp>
 #include <provizio_radar_api_ros2/msg/radar_info.hpp>
+#include <provizio_radar_api_ros2/srv/set_radar_range.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 
@@ -28,6 +29,8 @@ namespace provizio
         const provizio::contained_polygon_instance_stamped &message);
 #endif
     provizio_radar_api_ros2::msg::RadarInfo to_ros2_radar_info(provizio::contained_radar_info message);
+    provizio::contained_set_radar_range to_contained_set_radar_range(
+        const provizio_radar_api_ros2::srv::SetRadarRange::Request &request);
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINED_TYPES_ROS2_CONVERSION

@@ -24,6 +24,10 @@ namespace provizio
                                                          const std::string &topic_name,
                                                          on_message_function<provizio::contained_radar_info> on_message,
                                                          on_message_context context);
+    std::shared_ptr<void> make_dds_publisher_set_radar_range(const std::shared_ptr<void> &domain_participant,
+                                                             const std::string &topic_name);
+    bool dds_publish_set_radar_range(const std::shared_ptr<void> &publisher,
+                                     provizio::contained_set_radar_range message);
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINER

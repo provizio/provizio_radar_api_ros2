@@ -2,4 +2,4 @@ std_msgs/Header header
 string serial_number # Optional, specify to make sure only the desired radar gets the range changed, ignoring header.frame_id
 int8 target_range    # As one of the constants declared in radar_info.msg
 ---
-int8 actual_range    # When set successfully, same as target_range. Otherwise, the actual current radar range constant.
+int8 actual_range    # When set successfully, same as target_range. Otherwise, another current radar range constant.

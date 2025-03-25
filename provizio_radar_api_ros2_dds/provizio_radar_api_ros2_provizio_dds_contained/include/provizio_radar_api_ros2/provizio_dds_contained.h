@@ -33,6 +33,10 @@ extern "C"
     std::shared_ptr<void> provizio_dds_contained_make_subscriber_radar_info(
         const std::shared_ptr<void> &domain_participant, const std::string &topic_name,
         provizio::on_message_function<provizio::contained_radar_info> on_message, provizio::on_message_context context);
+    std::shared_ptr<void> provizio_dds_contained_make_publisher_set_radar_range(
+        const std::shared_ptr<void> &domain_participant, const std::string &topic_name);
+    bool provizio_dds_contained_publish_set_radar_range(const std::shared_ptr<void> &publisher,
+                                                        provizio::contained_set_radar_range message);
 }
 
 #endif // PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINED

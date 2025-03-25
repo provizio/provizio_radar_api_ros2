@@ -11,6 +11,7 @@ namespace provizio
     const std::string camera_ros2_topic_name = "/provizio/camera_raw";                       // NOLINT: Never throws
     const std::string radar_freespace_ros2_topic_name = "/provizio/radar_freespace/stamped"; // NOLINT: Never throws
     const std::string radar_freespace_ros2_instance_topic_name =
-        "/provizio/radar_freespace/instance_stamped";                      // NOLINT: Never throws
-    const std::string radar_info_ros2_topic_name = "/provizio/radar_info"; // NOLINT: Never throws
+        "/provizio/radar_freespace/instance_stamped";                                  // NOLINT: Never throws
+    const std::string radar_info_ros2_topic_name = "/provizio/radar_info";             // NOLINT: Never throws
+    const std::string set_radar_range_ros2_service_name = "/provizio/set_radar_range"; // NOLINT: Never throws
 } // namespace provizio

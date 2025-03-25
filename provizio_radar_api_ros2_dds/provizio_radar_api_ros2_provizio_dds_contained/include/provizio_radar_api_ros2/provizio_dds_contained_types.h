@@ -131,6 +131,13 @@ namespace provizio
         std::vector<std::int8_t> supported_ranges;
         std::int8_t current_multiplexing_mode;
     };
+
+    struct contained_set_radar_range
+    {
+        contained_header header;
+        std::string serial_number;
+        std::int8_t target_range;
+    };
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINED_TYPES

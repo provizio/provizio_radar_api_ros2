@@ -3,9 +3,11 @@
 #include "geometry_msgs/msg/PolygonInstanceStampedPubSubTypes.h"
 #include "nav_msgs/msg/OdometryPubSubTypes.h"
 #include "provizio/msg/radar_infoPubSubTypes.h"
+#include "provizio/msg/radar_rangePubSubTypes.h"
 #include "sensor_msgs/msg/ImagePubSubTypes.h"
 #include "sensor_msgs/msg/PointCloud2PubSubTypes.h"
 
+#include "provizio/dds/publisher.h"
 #include "provizio/dds/subscriber.h"
 
 #include "provizio_dds_contained_types_dds_conversion.h"
@@ -71,5 +73,21 @@ extern "C"
             [context, on_message](const provizio::msg::radar_info &message) {
                 return on_message(context, provizio::to_contained_radar_info(message));
             });
+    }
+
+    std::shared_ptr<void> provizio_dds_contained_make_publisher_set_radar_range(
+        const std::shared_ptr<void> &domain_participant, const std::string &topic_name)
+    {
+        return provizio::dds::make_publisher<provizio::msg::set_radar_rangePubSubType>(
+            std::static_pointer_cast<provizio::dds::DomainParticipant>(domain_participant), topic_name);
+    }
+
+    bool provizio_dds_contained_publish_set_radar_range(const std::shared_ptr<void> &publisher,
+                                                        provizio::contained_set_radar_range message)
+    {
+        auto message_to_publish = provizio::to_dds_set_radar_range(message);
+        return std::static_pointer_cast<provizio::dds::publisher_handle<provizio::msg::set_radar_rangePubSubType>>(
+                   publisher)
+            ->publish(message_to_publish);
     }
 }

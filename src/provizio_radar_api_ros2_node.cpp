@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include "provizio_radar_api_ros2/radar_api_ros2_wrapper.h"
@@ -41,6 +42,8 @@ int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
 
+    rclcpp::executors::MultiThreadedExecutor executor;
+
     std::shared_ptr<provizio::provizio_radar_api_ros2_node> node;
     int error_code = 0;
     try
@@ -49,9 +52,12 @@ int main(int argc, char *argv[])
 
         RCLCPP_INFO(node->get_logger(), "provizio_radar_api_ros2_node started");
 
-        rclcpp::spin(node);
+        executor.add_node(node);
+        executor.spin();
 
         RCLCPP_INFO(node->get_logger(), "provizio_radar_api_ros2_node finished");
+        
+        executor.remove_node(node);
         node.reset();
     }
     catch (const std::exception &exception)
@@ -59,6 +65,7 @@ int main(int argc, char *argv[])
         if (node)
         {
             RCLCPP_ERROR(node->get_logger(), "provizio_radar_api_ros2_node threw an exception: %s", exception.what());
+            executor.remove_node(node);
             node.reset();
         }
         else

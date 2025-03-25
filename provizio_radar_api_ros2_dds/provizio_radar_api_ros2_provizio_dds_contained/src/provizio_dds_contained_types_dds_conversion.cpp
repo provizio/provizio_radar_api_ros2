@@ -18,11 +18,27 @@ namespace provizio
             return result;
         }
 
+        builtin_interfaces::msg::Time to_dds_time(const provizio::contained_time &stamp)
+        {
+            builtin_interfaces::msg::Time result;
+            result.sec(stamp.sec);
+            result.nanosec(stamp.nanosec);
+            return result;
+        }
+
         provizio::contained_header to_contained_header(const std_msgs::msg::Header &header)
         {
             provizio::contained_header result;
             result.frame_id = header.frame_id();
             result.stamp = to_contained_time(header.stamp());
+            return result;
+        }
+
+        std_msgs::msg::Header to_dds_header(provizio::contained_header header)
+        {
+            std_msgs::msg::Header result;
+            result.frame_id(std::move(header.frame_id));
+            result.stamp(to_dds_time(header.stamp));
             return result;
         }
 
@@ -169,6 +185,15 @@ namespace provizio
         std::transform(supported_ranges.begin(), supported_ranges.end(), std::back_inserter(result.supported_ranges),
                        [](const provizio::msg::radar_range range) { return static_cast<std::int8_t>(range); });
         result.current_multiplexing_mode = 0; // TODO(iivanov): Use actual multiplexing mode when it's available
+        return result;
+    }
+
+    provizio::msg::set_radar_range to_dds_set_radar_range(contained_set_radar_range message)
+    {
+        provizio::msg::set_radar_range result;
+        result.header(to_dds_header(std::move(message.header)));
+        result.serial_number(std::move(message.serial_number));
+        result.target_range(static_cast<provizio::msg::radar_range>(message.target_range));
         return result;
     }
 } // namespace provizio

@@ -15,11 +15,27 @@ namespace provizio
             return result;
         }
 
+        provizio::contained_time to_contained_time(const builtin_interfaces::msg::Time &stamp)
+        {
+            provizio::contained_time result;
+            result.sec = stamp.sec;
+            result.nanosec = stamp.nanosec;
+            return result;
+        }
+
         std_msgs::msg::Header to_ros2_header(provizio::contained_header header)
         {
             std_msgs::msg::Header result;
             result.frame_id = std::move(header.frame_id);
             result.stamp = to_ros2_time(header.stamp);
+            return result;
+        }
+
+        provizio::contained_header to_contained_header(std_msgs::msg::Header header)
+        {
+            provizio::contained_header result;
+            result.frame_id = std::move(header.frame_id);
+            result.stamp = to_contained_time(header.stamp);
             return result;
         }
 
@@ -180,6 +196,16 @@ namespace provizio
         result.current_range = message.current_range;
         result.supported_ranges = std::move(message.supported_ranges);
         result.current_multiplexing_mode = message.current_multiplexing_mode;
+        return result;
+    }
+
+    provizio::contained_set_radar_range to_contained_set_radar_range(
+        const provizio_radar_api_ros2::srv::SetRadarRange::Request &request)
+    {
+        provizio::contained_set_radar_range result;
+        result.header = to_contained_header(request.header);
+        result.serial_number = request.serial_number;
+        result.target_range = request.target_range;
         return result;
     }
 } // namespace provizio
