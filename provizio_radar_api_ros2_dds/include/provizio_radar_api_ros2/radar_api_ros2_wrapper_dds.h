@@ -35,6 +35,7 @@
 
 #include "provizio_radar_api_ros2/constants.h"
 #include "provizio_radar_api_ros2/constants_dds.h"
+#include "provizio_radar_api_ros2/parameters.h"
 #include "provizio_radar_api_ros2/provizio_dds_contained_types_ros2_conversion.h"
 #include "provizio_radar_api_ros2/provizio_dds_container.h"
 
@@ -48,6 +49,7 @@ namespace provizio
             constexpr bool enabled_by_default = true;
 
             // Declare all of the Node parameters
+            declare_common_parameters(node);
             node.declare_parameter(dds_domain_id_param, static_cast<int>(default_dds_domain_id));
             node.declare_parameter(publish_radar_pc_param, enabled_by_default);
             node.declare_parameter(publish_radar_pc_sr_param, enabled_by_default);
@@ -62,7 +64,6 @@ namespace provizio
 #endif
             node.declare_parameter(publish_radar_info_param, enabled_by_default);
             node.declare_parameter(serve_set_radar_range_param, enabled_by_default);
-            node.declare_parameter(radar_pc_ros2_topic_name_param, default_radar_pc_ros2_topic_name);
             node.declare_parameter(radar_pc_sr_ros2_topic_name_param, default_radar_pc_sr_ros2_topic_name);
             node.declare_parameter(entities_radar_ros2_topic_name_param, default_entities_radar_ros2_topic_name);
             node.declare_parameter(entities_camera_ros2_topic_name_param, default_entities_camera_ros2_topic_name);
@@ -82,38 +83,6 @@ namespace provizio
         bool deactivate();
 
       private:
-        // Constants
-        static constexpr std::chrono::seconds max_time_to_set_radar_range{30};
-        static constexpr std::uint32_t default_dds_domain_id = 0;
-        const rclcpp::QoS default_ros2_qos{2};
-        const std::string dds_domain_id_param = "provizio_dds_domain_id";
-        const std::string publish_radar_pc_param = "publish_radar_pc";
-        const std::string publish_radar_pc_sr_param = "publish_radar_pc_sr";
-        const std::string publish_entities_radar_param = "publish_entities_radar";
-        const std::string publish_entities_camera_param = "publish_entities_camera";
-        const std::string publish_entities_fusion_param = "publish_entities_fusion";
-        const std::string publish_radar_odometry_param = "publish_radar_odometry";
-        const std::string publish_camera_param = "publish_camera";
-        const std::string publish_radar_freespace_param = "publish_radar_freespace";
-#if PROVIZIO_POLYGON_INSTANCE_AVAILABLE
-        const std::string publish_radar_freespace_instance_param = "publish_radar_freespace_instance";
-#endif
-        const std::string publish_radar_info_param = "publish_radar_info";
-        const std::string serve_set_radar_range_param = "serve_set_radar_range";
-        const std::string radar_pc_ros2_topic_name_param = "radar_pc_topic";
-        const std::string radar_pc_sr_ros2_topic_name_param = "radar_pc_sr_topic";
-        const std::string entities_radar_ros2_topic_name_param = "entities_radar_topic";
-        const std::string entities_camera_ros2_topic_name_param = "entities_camera_topic";
-        const std::string entities_fusion_ros2_topic_name_param = "entities_fusion_topic";
-        const std::string radar_odometry_ros2_topic_name_param = "radar_odometry_topic";
-        const std::string camera_ros2_topic_name_param = "camera_topic";
-        const std::string radar_freespace_ros2_topic_name_param = "radar_freespace_topic";
-#if PROVIZIO_POLYGON_INSTANCE_AVAILABLE
-        const std::string radar_freespace_ros2_instance_topic_name_param = "radar_freespace_instance_topic";
-#endif
-        const std::string radar_info_ros2_topic_name_param = "radar_info_topic";
-        const std::string set_radar_range_ros2_service_name_param = "set_radar_range_service";
-
         // Functions
         static void on_radar_point_cloud(void *context, contained_pointcloud2 message);
         static void on_radar_point_cloud_sr(void *context, contained_pointcloud2 message);

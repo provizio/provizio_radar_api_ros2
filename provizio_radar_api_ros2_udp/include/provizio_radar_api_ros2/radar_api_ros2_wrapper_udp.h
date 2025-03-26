@@ -15,6 +15,17 @@
 #ifndef PROVIZIO_RADAR_API_ROS2_RADAR_API_ROS2_WRAPPER_UDP
 #define PROVIZIO_RADAR_API_ROS2_RADAR_API_ROS2_WRAPPER_UDP
 
+#include <atomic>
+#include <string>
+#include <thread>
+
+#include "provizio/radar_api/core.h"
+#include <sensor_msgs/msg/point_cloud2.hpp>
+
+#include "provizio_radar_api_ros2/constants.h"
+#include "provizio_radar_api_ros2/constants_udp.h"
+#include "provizio_radar_api_ros2/parameters.h"
+
 namespace provizio
 {
     template <typename node_t> class radar_api_ros2_wrapper_udp
@@ -22,21 +33,207 @@ namespace provizio
       public:
         radar_api_ros2_wrapper_udp(node_t &node) : node(node)
         {
+            std::memset(&radar_api_connection, 0, sizeof(radar_api_connection));
+
+            declare_common_parameters(node);
         }
 
-        bool activate()
-        {
-            return true;
-        }
-
-        bool deactivate()
-        {
-            return true;
-        }
+        bool activate();
+        bool deactivate();
 
       private:
+        // Constants
+        static constexpr std::size_t max_radars = default_max_radars;               // TODO: Read from config
+        static constexpr std::uint16_t udp_port = PROVIZIO__RADAR_API_DEFAULT_PORT; // TODO: Read from config
+        static constexpr float snr_threshold = default_snr_threshold;               // TODO: Read from config
+
+        // Functions
+        static void on_radar_point_cloud(const provizio_radar_point_cloud *point_cloud,
+                                         struct provizio_radar_point_cloud_api_context *context);
+        void receive_loop();
+
+        // Variables
         node_t &node;
+        std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> ros2_radar_pc_publisher;
+        std::vector<provizio_radar_point_cloud_api_context> contexts;
+        provizio_radar_api_connection radar_api_connection;
+        std::atomic<bool> stop_receiving{false};
+        std::unique_ptr<std::thread> receive_thread;
     };
+
+    constexpr bool is_host_big_endian()
+    {
+        union {
+            uint32_t as_int;
+            char as_chars[4];
+        } testint = {0x01020304};
+
+        return testint.as_chars[0] == 1;
+    }
+
+    builtin_interfaces::msg::Time ns_to_ros2_time(const std::uint64_t timestamp);
+    std::string radar_position_id_to_frame_id(const std::uint16_t position_id);
+
+    template <typename node_t> bool radar_api_ros2_wrapper_udp<node_t>::activate()
+    {
+        if (receive_thread != nullptr)
+        {
+            // Already active
+            return false;
+        }
+
+        ros2_radar_pc_publisher = node.template create_publisher<sensor_msgs::msg::PointCloud2>(
+            node.get_parameter(radar_pc_ros2_topic_name_param).as_string(), default_ros2_qos);
+
+        // Initialize the Provizio Radar API contexts
+        contexts.resize(max_radars);
+        provizio_radar_point_cloud_api_contexts_init(&radar_api_ros2_wrapper_udp<node_t>::on_radar_point_cloud, this,
+                                                     contexts.data(), contexts.size());
+
+        // Open a live Provizio radars connection
+        auto status = provizio_open_radars_connection(udp_port, receive_timeout_ns, 0, contexts.data(), contexts.size(),
+                                                      &radar_api_connection);
+        if (status != 0)
+        {
+            RCLCPP_ERROR(node.get_logger(), "provizio_open_radars_connection failed. Error code: %d",
+                         static_cast<int>(status));
+            contexts.clear();
+            ros2_radar_pc_publisher.reset();
+
+            return false;
+        }
+
+        // Start receiving and handling packets
+        stop_receiving = false;
+        receive_thread = std::make_unique<std::thread>(&radar_api_ros2_wrapper_udp::receive_loop, this);
+
+        return true;
+    }
+
+    template <typename node_t> bool radar_api_ros2_wrapper_udp<node_t>::deactivate()
+    {
+        if (receive_thread == nullptr)
+        {
+            // Already deactivated
+            return false;
+        }
+
+        // Stop receiving and handling packets
+        stop_receiving = true;
+        receive_thread->join();
+        receive_thread.reset();
+
+        // Close the connection
+        provizio_close_radar_connection(&radar_api_connection);
+
+        // Clear the API contexts
+        contexts.clear();
+
+        // Delete the ROS2 publisher
+        ros2_radar_pc_publisher.reset();
+
+        return true;
+    }
+
+    template <typename node_t> void radar_api_ros2_wrapper_udp<node_t>::receive_loop()
+    {
+        while (!stop_receiving)
+        {
+            const auto status = provizio_radar_api_receive_packet(&radar_api_connection);
+            if (status != 0 && status != PROVIZIO_E_TIMEOUT && status != PROVIZIO_E_SKIPPED)
+            {
+                if (status == EINTR)
+                {
+                    RCLCPP_INFO(node.get_logger(),
+                                "provizio_radar_api_receive_packet has been interrupted by user. Done receiving.");
+                    return;
+                }
+
+                RCLCPP_ERROR(node.get_logger(), "provizio_radar_api_receive_packet failed. Error code: %d", status);
+            }
+        }
+    }
+
+    template <typename node_t>
+    void radar_api_ros2_wrapper_udp<node_t>::on_radar_point_cloud(
+        const provizio_radar_point_cloud *point_cloud, struct provizio_radar_point_cloud_api_context *context)
+    {
+        constexpr std::uint8_t float_field_type = sensor_msgs::msg::PointField::FLOAT32;
+        constexpr std::size_t num_fields_per_point = 6;
+        constexpr std::size_t field_x = 0;
+        constexpr std::size_t field_y = 1;
+        constexpr std::size_t field_z = 2;
+        constexpr std::size_t field_radar_relative_radial_velocity = 3;
+        constexpr std::size_t field_signal_to_noise_ratio = 4;
+        constexpr std::size_t field_ground_relative_radial_velocity =
+            5; // May be valid or NaN, depending on radar configuration
+
+        auto &self = *static_cast<radar_api_ros2_wrapper_udp<node_t> *>(context->user_data);
+
+        // Convert provizio_radar_point_cloud to sensor_msgs::PointCloud2
+        sensor_msgs::msg::PointCloud2 ros_point_cloud;
+        ros_point_cloud.header.stamp = ns_to_ros2_time(point_cloud->timestamp);
+        ros_point_cloud.header.frame_id = radar_position_id_to_frame_id(point_cloud->radar_position_id);
+        ros_point_cloud.height = 1;
+        ros_point_cloud.fields.resize(num_fields_per_point);
+        ros_point_cloud.fields[field_x].name = field_x_name;
+        ros_point_cloud.fields[field_x].offset = offsetof(provizio_radar_point, x_meters);
+        ros_point_cloud.fields[field_x].datatype = float_field_type;
+        ros_point_cloud.fields[field_x].count = 1;
+        ros_point_cloud.fields[field_y].name = field_y_name;
+        ros_point_cloud.fields[field_y].offset = offsetof(provizio_radar_point, y_meters);
+        ros_point_cloud.fields[field_y].datatype = float_field_type;
+        ros_point_cloud.fields[field_y].count = 1;
+        ros_point_cloud.fields[field_z].name = field_z_name;
+        ros_point_cloud.fields[field_z].offset = offsetof(provizio_radar_point, z_meters);
+        ros_point_cloud.fields[field_z].datatype = float_field_type;
+        ros_point_cloud.fields[field_z].count = 1;
+        ros_point_cloud.fields[field_radar_relative_radial_velocity].name = field_radar_relative_radial_velocity_name;
+        ros_point_cloud.fields[field_radar_relative_radial_velocity].offset =
+            offsetof(provizio_radar_point, radar_relative_radial_velocity_m_s);
+        ros_point_cloud.fields[field_radar_relative_radial_velocity].datatype = float_field_type;
+        ros_point_cloud.fields[field_radar_relative_radial_velocity].count = 1;
+        ros_point_cloud.fields[field_signal_to_noise_ratio].name = field_signal_to_noise_ratio_name;
+        ros_point_cloud.fields[field_signal_to_noise_ratio].offset =
+            offsetof(provizio_radar_point, signal_to_noise_ratio);
+        ros_point_cloud.fields[field_signal_to_noise_ratio].datatype = float_field_type;
+        ros_point_cloud.fields[field_signal_to_noise_ratio].count = 1;
+        ros_point_cloud.fields[field_ground_relative_radial_velocity].name = field_ground_relative_radial_velocity_name;
+        ros_point_cloud.fields[field_ground_relative_radial_velocity].offset =
+            offsetof(provizio_radar_point, ground_relative_radial_velocity_m_s);
+        ros_point_cloud.fields[field_ground_relative_radial_velocity].datatype = float_field_type;
+        ros_point_cloud.fields[field_ground_relative_radial_velocity].count = 1;
+        ros_point_cloud.is_bigendian = is_host_big_endian();
+        ros_point_cloud.point_step = sizeof(provizio_radar_point);
+        if (snr_threshold <= 0.0F)
+        {
+            // Output all points
+            ros_point_cloud.width = point_cloud->num_points_received;
+            ros_point_cloud.data.resize(ros_point_cloud.point_step * point_cloud->num_points_received);
+            std::memcpy(ros_point_cloud.data.data(), point_cloud->radar_points, ros_point_cloud.data.size());
+        }
+        else
+        {
+            // Apply SnR filter
+            ros_point_cloud.width = 0;
+            ros_point_cloud.data.reserve(ros_point_cloud.point_step * point_cloud->num_points_received);
+            for (std::size_t i = 0; i < point_cloud->num_points_received; ++i)
+            {
+                if (point_cloud->radar_points[i].signal_to_noise_ratio >= snr_threshold)
+                {
+                    ++ros_point_cloud.width;
+                    ros_point_cloud.data.resize(ros_point_cloud.data.size() + ros_point_cloud.point_step);
+                    std::memcpy(ros_point_cloud.data.data() + ros_point_cloud.data.size() - ros_point_cloud.point_step,
+                                &point_cloud->radar_points[i], ros_point_cloud.point_step);
+                }
+            }
+        }
+        ros_point_cloud.row_step = static_cast<decltype(ros_point_cloud.row_step)>(ros_point_cloud.data.size());
+        ros_point_cloud.is_dense = true;
+
+        // Good to publish now
+        self.ros2_radar_pc_publisher->publish(std::move(ros_point_cloud));
+    }
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_RADAR_API_ROS2_WRAPPER_UDP

@@ -15,4 +15,6 @@ namespace provizio
         "/provizio/radar_freespace/instance_stamped";                                          // NOLINT: Never throws
     const std::string default_radar_info_ros2_topic_name = "/provizio/radar_info";             // NOLINT: Never throws
     const std::string default_set_radar_range_ros2_service_name = "/provizio/set_radar_range"; // NOLINT: Never throws
+    const std::string radar_pc_ros2_topic_name_param = "radar_pc_topic";                       // NOLINT: Never throws
+    const rclcpp::QoS default_ros2_qos{2};
 } // namespace provizio

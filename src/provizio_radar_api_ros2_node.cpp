@@ -34,7 +34,6 @@ namespace provizio
 
       private:
         std::unique_ptr<radar_api_ros2_wrapper<rclcpp::Node>> api_wrapper;
-        std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> publisher;
     };
 } // namespace provizio
 
