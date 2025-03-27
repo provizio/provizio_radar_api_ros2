@@ -16,6 +16,7 @@
 #define PROVIZIO_RADAR_API_ROS2_RADAR_API_ROS2_WRAPPER_UDP
 
 #include <atomic>
+#include <functional>
 #include <string>
 #include <thread>
 
@@ -41,7 +42,9 @@ namespace provizio
 
             declare_common_parameters(node);
             node.declare_parameter(max_radars_param, static_cast<int>(default_max_radars));
-            node.declare_parameter(udp_port_param, static_cast<int>(PROVIZIO__RADAR_API_DEFAULT_PORT));
+            node.declare_parameter(pc_udp_port_param, static_cast<int>(PROVIZIO__RADAR_API_DEFAULT_PORT));
+            node.declare_parameter(set_range_udp_port_param,
+                                   static_cast<int>(PROVIZIO__RADAR_API_SET_RANGE_DEFAULT_PORT));
         }
 
         ~radar_api_ros2_wrapper_udp()
@@ -60,6 +63,9 @@ namespace provizio
         static void on_radar_point_cloud(const provizio_radar_point_cloud *point_cloud,
                                          struct provizio_radar_point_cloud_api_context *context);
         void receive_loop();
+        void on_set_radar_range_request(
+            const std::shared_ptr<provizio_radar_api_ros2::srv::SetRadarRange::Request> request,
+            std::shared_ptr<provizio_radar_api_ros2::srv::SetRadarRange::Response> response);
 
         // Variables
         node_t &node;
@@ -67,10 +73,13 @@ namespace provizio
         float snr_threshold{default_snr_threshold};
         std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> ros2_radar_pc_publisher;
         std::shared_ptr<rclcpp::Publisher<provizio_radar_api_ros2::msg::RadarInfo>> ros2_radar_info_publisher;
+        std::shared_ptr<rclcpp::Service<provizio_radar_api_ros2::srv::SetRadarRange>> ros2_set_radar_range_service;
         std::vector<provizio_radar_point_cloud_api_context> contexts;
         provizio_radar_api_connection radar_api_connection;
         std::atomic<bool> stop_receiving{false};
         std::unique_ptr<std::thread> receive_thread;
+        std::mutex current_radar_ranges_mutex;
+        std::unordered_map<std::uint16_t, std::int8_t> current_radar_ranges_by_frame_id;
     };
 
     constexpr bool is_host_big_endian()
@@ -85,8 +94,10 @@ namespace provizio
 
     void make_sure_sockets_initialized();
     builtin_interfaces::msg::Time ns_to_ros2_time(std::uint64_t timestamp);
-    std::string radar_position_id_to_frame_id(std::uint16_t position_id);
-    std::int8_t udp_api_radar_range_to_ros2_range(std::uint16_t udp_api_radar_range);
+    std::string radar_position_id_to_frame_id(provizio_radar_position position_id);
+    provizio_radar_position radar_frame_id_to_position_id(const std::string &frame_id);
+    std::int8_t udp_api_radar_range_to_ros2_range(provizio_radar_range udp_api_radar_range);
+    provizio_radar_range ros2_range_to_udp_api_radar_range(std::int8_t ros2_radar_range);
 
     template <typename node_t> bool radar_api_ros2_wrapper_udp<node_t>::activate()
     {
@@ -112,6 +123,15 @@ namespace provizio
                 node.get_parameter(radar_info_ros2_topic_name_param).as_string(), default_ros2_qos);
         }
 
+        // Create services
+        if (node.get_parameter(serve_set_radar_range_param).as_bool())
+        {
+            ros2_set_radar_range_service = node.template create_service<provizio_radar_api_ros2::srv::SetRadarRange>(
+                node.get_parameter(set_radar_range_ros2_service_name_param).as_string(),
+                std::bind(&radar_api_ros2_wrapper_udp::on_set_radar_range_request, this, std::placeholders::_1,
+                          std::placeholders::_2));
+        }
+
         // Initialize the Provizio Radar API contexts (needed in any case)
         contexts.resize(static_cast<std::size_t>(node.get_parameter(max_radars_param).as_int()));
         provizio_radar_point_cloud_api_contexts_init(&radar_api_ros2_wrapper_udp<node_t>::on_radar_point_cloud, this,
@@ -119,8 +139,8 @@ namespace provizio
 
         // Open a live Provizio radars connection
         auto status = provizio_open_radars_connection(
-            static_cast<uint16_t>(node.get_parameter(udp_port_param).as_int()), receive_timeout_ns, 0, contexts.data(),
-            contexts.size(), &radar_api_connection);
+            static_cast<uint16_t>(node.get_parameter(pc_udp_port_param).as_int()), receive_timeout_ns, 0,
+            contexts.data(), contexts.size(), &radar_api_connection);
         if (status != 0)
         {
             RCLCPP_ERROR(node.get_logger(), "provizio_open_radars_connection failed. Error code: %d",
@@ -158,7 +178,8 @@ namespace provizio
         // Clear the API contexts
         contexts.clear();
 
-        // Delete the ROS2 publishers
+        // Delete the ROS2 publishers and services
+        ros2_set_radar_range_service.reset();
         ros2_radar_pc_publisher.reset();
         ros2_radar_info_publisher.reset();
 
@@ -203,7 +224,8 @@ namespace provizio
 
         std_msgs::msg::Header header;
         header.stamp = ns_to_ros2_time(point_cloud->timestamp);
-        header.frame_id = radar_position_id_to_frame_id(point_cloud->radar_position_id);
+        header.frame_id =
+            radar_position_id_to_frame_id(static_cast<provizio_radar_position>(point_cloud->radar_position_id));
 
         auto ros2_radar_pc_publisher =
             self.ros2_radar_pc_publisher; // So we're sure it won't be reset in another thread
@@ -269,16 +291,62 @@ namespace provizio
             ros2_radar_pc_publisher->publish(std::move(ros_point_cloud));
         }
 
+        // Update the radar range
+        const auto ros2_range =
+            udp_api_radar_range_to_ros2_range(static_cast<provizio_radar_range>(point_cloud->radar_range));
+        {
+            std::lock_guard<std::mutex> lock{self.current_radar_ranges_mutex};
+            self.current_radar_ranges_by_frame_id[point_cloud->radar_position_id] = ros2_range;
+        }
+
         auto ros2_radar_info_publisher =
             self.ros2_radar_info_publisher; // So we're sure it won't be reset in another thread
         if (ros2_radar_info_publisher != nullptr)
         {
             provizio_radar_api_ros2::msg::RadarInfo radar_info;
             radar_info.header = header;
-            radar_info.current_range = udp_api_radar_range_to_ros2_range(point_cloud->radar_range);
+            radar_info.current_range = ros2_range;
             radar_info.current_multiplexing_mode =
                 -1; // TODO(iivanov): Use actual multiplexing mode when it's available
+            // TODO(iivanov): serial_number and supported_ranges are currently unavailable in the UDP API
+
             ros2_radar_info_publisher->publish(std::move(radar_info));
+        }
+    }
+
+    template <typename node_t>
+    void radar_api_ros2_wrapper_udp<node_t>::on_set_radar_range_request(
+        const std::shared_ptr<provizio_radar_api_ros2::srv::SetRadarRange::Request> request,
+        std::shared_ptr<provizio_radar_api_ros2::srv::SetRadarRange::Response> response)
+    {
+        if (!request->serial_number.empty())
+        {
+            // TODO(iivanov): Change when the UDP API supports setting ranges by serial number
+            RCLCPP_ERROR(node.get_logger(), "radar_api_ros2_wrapper_udp doesn't support setting ranges by radar's "
+                                            "serial_number. Using header.frame_id instead.");
+        }
+
+        const auto get_current_radar_range = [this](const std::uint16_t position_id) {
+            std::lock_guard<std::mutex> lock{current_radar_ranges_mutex};
+            const auto it = current_radar_ranges_by_frame_id.find(position_id);
+            return it != current_radar_ranges_by_frame_id.end()
+                       ? it->second
+                       : provizio_radar_api_ros2::msg::RadarInfo::UNKNOWN_RANGE;
+        };
+
+        const auto position_id = radar_frame_id_to_position_id(request->header.frame_id);
+        const auto current_range = get_current_radar_range(position_id);
+
+        if (current_range == request->target_range ||
+            provizio_set_radar_range(position_id, ros2_range_to_udp_api_radar_range(request->target_range),
+                                     static_cast<uint16_t>(node.get_parameter(set_range_udp_port_param).as_int()),
+                                     nullptr) == 0)
+        {
+            response->actual_range = request->target_range;
+        }
+        else
+        {
+            response->actual_range = get_current_radar_range(position_id);
         }
     }
 } // namespace provizio

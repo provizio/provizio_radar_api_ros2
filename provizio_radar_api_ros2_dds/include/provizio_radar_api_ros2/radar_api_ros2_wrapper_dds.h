@@ -127,6 +127,7 @@ namespace provizio
         std::shared_ptr<void> dds_radar_info_subscriber;
 
         std::shared_ptr<rclcpp::Service<provizio_radar_api_ros2::srv::SetRadarRange>> ros2_set_radar_range_service;
+        bool stop_ros2_set_radar_range_service{false};
 
         std::condition_variable current_radar_ranges_cv;
         std::mutex current_radar_ranges_mutex;
@@ -249,6 +250,7 @@ namespace provizio
         {
             dds_set_radar_range_publisher = make_dds_publisher_set_radar_range(
                 dds_domain_participant, node.get_parameter(set_radar_range_ros2_service_name_param).as_string());
+            stop_ros2_set_radar_range_service = false;
             ros2_set_radar_range_service = node.template create_service<provizio_radar_api_ros2::srv::SetRadarRange>(
                 node.get_parameter(set_radar_range_ros2_service_name_param).as_string(),
                 std::bind(&radar_api_ros2_wrapper_dds::on_set_radar_range_request, this, std::placeholders::_1,
@@ -267,6 +269,11 @@ namespace provizio
         }
 
         // Destroy the services
+        {
+            std::lock_guard<std::mutex> lock{current_radar_ranges_mutex};
+            stop_ros2_set_radar_range_service = true;
+        }
+        current_radar_ranges_cv.notify_all(); // To stop waiting for radar range setting, if waiting
         ros2_set_radar_range_service.reset();
 
         // Destroy the subscribers first so none of them tries to publish with destroyed publishers
@@ -471,7 +478,8 @@ namespace provizio
         if (dds_publish_set_radar_range(dds_set_radar_range_publisher, to_contained_set_radar_range(*request)))
         {
             current_radar_ranges_cv.wait_for(lock, max_time_to_set_radar_range, [&]() {
-                return get_current_radar_range(frame_id, serial_number) == request->target_range;
+                return stop_ros2_set_radar_range_service ||
+                       get_current_radar_range(frame_id, serial_number) == request->target_range;
             });
         }
         else
