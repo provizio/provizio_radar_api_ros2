@@ -22,9 +22,9 @@ namespace provizio
     class provizio_radar_api_ros2_node : public rclcpp::Node
     {
       public:
-        provizio_radar_api_ros2_node()
+        provizio_radar_api_ros2_node(rclcpp::Executor &executor)
             : Node("provizio_radar_api_ros2_node"),
-              api_wrapper(std::make_unique<radar_api_ros2_wrapper<rclcpp::Node>>(*this))
+              api_wrapper(std::make_unique<radar_api_ros2_wrapper<rclcpp::Node>>(*this, executor))
         {
             if (!api_wrapper->activate())
             {
@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
     int error_code = 0;
     try
     {
-        node = std::make_shared<provizio::provizio_radar_api_ros2_node>();
+        node = std::make_shared<provizio::provizio_radar_api_ros2_node>(executor);
 
         RCLCPP_INFO(node->get_logger(), "provizio_radar_api_ros2_node started");
 
@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
         executor.spin();
 
         RCLCPP_INFO(node->get_logger(), "provizio_radar_api_ros2_node finished");
-        
+
         executor.remove_node(node);
         node.reset();
     }

@@ -184,7 +184,7 @@ namespace provizio
         result.supported_ranges.reserve(supported_ranges.size());
         std::transform(supported_ranges.begin(), supported_ranges.end(), std::back_inserter(result.supported_ranges),
                        [](const provizio::msg::radar_range range) { return static_cast<std::int8_t>(range); });
-        result.current_multiplexing_mode = 0; // TODO(iivanov): Use actual multiplexing mode when it's available
+        result.current_multiplexing_mode = -1; // TODO(iivanov): Use actual multiplexing mode when it's available
         return result;
     }
 

@@ -44,26 +44,21 @@ namespace provizio
     template <typename node_t> class radar_api_ros2_wrapper_dds
     {
       public:
-        radar_api_ros2_wrapper_dds(node_t &node) : node(node)
+        radar_api_ros2_wrapper_dds(node_t &node, rclcpp::Executor & /*unused*/) : node(node)
         {
-            constexpr bool enabled_by_default = true;
-
             // Declare all of the Node parameters
             declare_common_parameters(node);
             node.declare_parameter(dds_domain_id_param, static_cast<int>(default_dds_domain_id));
-            node.declare_parameter(publish_radar_pc_param, enabled_by_default);
-            node.declare_parameter(publish_radar_pc_sr_param, enabled_by_default);
-            node.declare_parameter(publish_entities_radar_param, enabled_by_default);
-            node.declare_parameter(publish_entities_camera_param, enabled_by_default);
-            node.declare_parameter(publish_entities_fusion_param, enabled_by_default);
-            node.declare_parameter(publish_radar_odometry_param, enabled_by_default);
-            node.declare_parameter(publish_camera_param, enabled_by_default);
-            node.declare_parameter(publish_radar_freespace_param, enabled_by_default);
+            node.declare_parameter(publish_radar_pc_sr_param, function_enabled_by_default);
+            node.declare_parameter(publish_entities_radar_param, function_enabled_by_default);
+            node.declare_parameter(publish_entities_camera_param, function_enabled_by_default);
+            node.declare_parameter(publish_entities_fusion_param, function_enabled_by_default);
+            node.declare_parameter(publish_radar_odometry_param, function_enabled_by_default);
+            node.declare_parameter(publish_camera_param, function_enabled_by_default);
+            node.declare_parameter(publish_radar_freespace_param, function_enabled_by_default);
 #if PROVIZIO_POLYGON_INSTANCE_AVAILABLE
-            node.declare_parameter(publish_radar_freespace_instance_param, enabled_by_default);
+            node.declare_parameter(publish_radar_freespace_instance_param, function_enabled_by_default);
 #endif
-            node.declare_parameter(publish_radar_info_param, enabled_by_default);
-            node.declare_parameter(serve_set_radar_range_param, enabled_by_default);
             node.declare_parameter(radar_pc_sr_ros2_topic_name_param, default_radar_pc_sr_ros2_topic_name);
             node.declare_parameter(entities_radar_ros2_topic_name_param, default_entities_radar_ros2_topic_name);
             node.declare_parameter(entities_camera_ros2_topic_name_param, default_entities_camera_ros2_topic_name);
@@ -75,8 +70,14 @@ namespace provizio
             node.declare_parameter(radar_freespace_ros2_instance_topic_name_param,
                                    default_radar_freespace_ros2_instance_topic_name);
 #endif
-            node.declare_parameter(radar_info_ros2_topic_name_param, default_radar_info_ros2_topic_name);
-            node.declare_parameter(set_radar_range_ros2_service_name_param, default_set_radar_range_ros2_service_name);
+        }
+
+        ~radar_api_ros2_wrapper_dds()
+        {
+            if (dds_domain_participant != nullptr)
+            {
+                deactivate();
+            }
         }
 
         bool activate();
@@ -308,6 +309,7 @@ namespace provizio
                 ->ros2_radar_pc_publisher; // To make sure it can't be destroyed by another thread during this call
         if (publisher != nullptr)
         {
+            // TODO: respect snr_threshold_param
             publisher->publish(to_ros2_pointcloud2(std::move(message)));
         }
     }
@@ -320,6 +322,7 @@ namespace provizio
                                                            // during this call
         if (publisher != nullptr)
         {
+            // TODO: respect snr_threshold_param
             publisher->publish(to_ros2_pointcloud2(std::move(message)));
         }
     }

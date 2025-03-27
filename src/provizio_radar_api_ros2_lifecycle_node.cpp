@@ -25,7 +25,8 @@ namespace provizio
     class provizio_radar_api_ros2_lifecycle_node : public rclcpp_lifecycle::LifecycleNode
     {
       public:
-        provizio_radar_api_ros2_lifecycle_node() : LifecycleNode("provizio_radar_api_ros2_lifecycle_node")
+        provizio_radar_api_ros2_lifecycle_node(rclcpp::Executor &executor)
+            : LifecycleNode("provizio_radar_api_ros2_lifecycle_node"), executor(executor)
         {
         }
 
@@ -40,7 +41,7 @@ namespace provizio
 
             assert(!is_active); // It can't be active if there is no api_wrapper
 
-            api_wrapper = std::make_unique<radar_api_ros2_wrapper<rclcpp_lifecycle::LifecycleNode>>(*this);
+            api_wrapper = std::make_unique<radar_api_ros2_wrapper<rclcpp_lifecycle::LifecycleNode>>(*this, executor);
             RCLCPP_INFO(get_logger(), "provizio_radar_api_ros2_lifecycle_node configured");
             return CallbackReturn::SUCCESS;
         }
@@ -126,6 +127,7 @@ namespace provizio
             is_active = false;
         }
 
+        rclcpp::Executor &executor;
         std::unique_ptr<radar_api_ros2_wrapper<rclcpp_lifecycle::LifecycleNode>> api_wrapper;
         bool is_active = false;
     };
@@ -136,7 +138,7 @@ int main(int argc, char *argv[])
     rclcpp::init(argc, argv);
 
     rclcpp::executors::MultiThreadedExecutor executor;
-    auto node = std::make_shared<provizio::provizio_radar_api_ros2_lifecycle_node>();
+    auto node = std::make_shared<provizio::provizio_radar_api_ros2_lifecycle_node>(executor);
     auto node_base_interface = node->get_node_base_interface();
     executor.add_node(node_base_interface);
 

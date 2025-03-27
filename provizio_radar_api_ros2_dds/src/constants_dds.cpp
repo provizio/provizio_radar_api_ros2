@@ -3,7 +3,6 @@
 namespace provizio
 {
     const std::string dds_domain_id_param = "provizio_dds_domain_id";            // NOLINT: Never throws
-    const std::string publish_radar_pc_param = "publish_radar_pc";               // NOLINT: Never throws
     const std::string publish_radar_pc_sr_param = "publish_radar_pc_sr";         // NOLINT: Never throws
     const std::string publish_entities_radar_param = "publish_entities_radar";   // NOLINT: Never throws
     const std::string publish_entities_camera_param = "publish_entities_camera"; // NOLINT: Never throws
@@ -13,8 +12,6 @@ namespace provizio
     const std::string publish_radar_freespace_param = "publish_radar_freespace"; // NOLINT: Never throws
     const std::string publish_radar_freespace_instance_param =
         "publish_radar_freespace_instance";                                            // NOLINT: Never throws
-    const std::string publish_radar_info_param = "publish_radar_info";                 // NOLINT: Never throws
-    const std::string serve_set_radar_range_param = "serve_set_radar_range";           // NOLINT: Never throws
     const std::string radar_pc_sr_ros2_topic_name_param = "radar_pc_sr_topic";         // NOLINT: Never throws
     const std::string entities_radar_ros2_topic_name_param = "entities_radar_topic";   // NOLINT: Never throws
     const std::string entities_camera_ros2_topic_name_param = "entities_camera_topic"; // NOLINT: Never throws
@@ -24,8 +21,6 @@ namespace provizio
     const std::string radar_freespace_ros2_topic_name_param = "radar_freespace_topic"; // NOLINT: Never throws
     const std::string radar_freespace_ros2_instance_topic_name_param =
         "radar_freespace_instance_topic";                                                  // NOLINT: Never throws
-    const std::string radar_info_ros2_topic_name_param = "radar_info_topic";               // NOLINT: Never throws
-    const std::string set_radar_range_ros2_service_name_param = "set_radar_range_service"; // NOLINT: Never throws
     const std::string radar_pc_dds_topic_name = "rt/provizio_radar_point_cloud";           // NOLINT: Never throws
     const std::string radar_pc_sr_dds_topic_name = "rt/provizio_radar_point_cloud_sr";     // NOLINT: Never throws
     const std::string entities_radar_dds_topic_name = "rt/provizio_entities";              // NOLINT: Never throws

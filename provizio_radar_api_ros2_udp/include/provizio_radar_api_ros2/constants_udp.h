@@ -15,6 +15,8 @@ namespace provizio
     extern const std::string field_radar_relative_radial_velocity_name;
     extern const std::string field_signal_to_noise_ratio_name;
     extern const std::string field_ground_relative_radial_velocity_name;
+    extern const std::string max_radars_param;
+    extern const std::string udp_port_param;
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_CONSTANTS_UDP
