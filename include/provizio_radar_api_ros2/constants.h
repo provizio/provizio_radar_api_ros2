@@ -1,6 +1,7 @@
 #ifndef PROVIZIO_RADAR_API_ROS2_CONSTANTS
 #define PROVIZIO_RADAR_API_ROS2_CONSTANTS
 
+#include <cstdint>
 #include <string>
 
 #include <rclcpp/rclcpp.hpp>
@@ -28,6 +29,16 @@ namespace provizio
     extern const std::string set_radar_range_ros2_service_name_param;
     extern const std::string snr_threshold_param;
     extern const rclcpp::QoS default_ros2_qos;
+
+    constexpr bool is_host_big_endian()
+    {
+        union {
+            uint32_t as_int;
+            char as_chars[4];
+        } testint = {0x01020304};
+
+        return testint.as_chars[0] == 1;
+    }
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_CONSTANTS

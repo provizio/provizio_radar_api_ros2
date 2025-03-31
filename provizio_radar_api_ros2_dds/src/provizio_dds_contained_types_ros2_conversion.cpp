@@ -1,12 +1,15 @@
 #include <algorithm>
 #include <iterator>
 
+#include "provizio_radar_api_ros2/constants.h"
 #include "provizio_radar_api_ros2/provizio_dds_contained_types_ros2_conversion.h"
 
 namespace provizio
 {
     namespace
     {
+        const std::string snr_field_name = "signal_to_noise_ratio"; // NOLINT: Never throws
+
         builtin_interfaces::msg::Time to_ros2_time(const provizio::contained_time &stamp)
         {
             builtin_interfaces::msg::Time result;
@@ -111,20 +114,95 @@ namespace provizio
             result.covariance = std::move(twist.covariance);
             return result;
         }
+
+        float get_float_host_byte_order(float value, const bool value_byte_order_bigendian)
+        {
+            if (value_byte_order_bigendian != is_host_big_endian())
+            {
+                // Byte order needs to be reversed
+                std::uint32_t value_as_uint32_t; // NOLINT: Initialized right below
+                assert(sizeof(value_as_uint32_t) == sizeof(value));
+                memcpy(&value_as_uint32_t, &value, sizeof(value_as_uint32_t));
+
+                // Clang-tidy has a number of complains regarding the expression below, but we really have to do a
+                // pretty non-standard thing here
+                value_as_uint32_t =
+                    ((value_as_uint32_t & 0xff000000) >> 24) | ((value_as_uint32_t & 0x00ff0000) >> 8) | // NOLINT
+                    ((value_as_uint32_t & 0x0000ff00) << 8) | ((value_as_uint32_t & 0x000000ff) << 24);  // NOLINT
+
+                memcpy(&value, &value_as_uint32_t, sizeof(value_as_uint32_t));
+            }
+
+            return value;
+        }
+
+        float get_float_from_buffer(const std::vector<uint8_t> &data, const std::size_t offset,
+                                    const bool bigendian_data)
+        {
+            if (offset + sizeof(float) > data.size())
+            {
+                throw std::out_of_range{"offset is out of range of data"};
+            }
+
+            float value; // NOLINT: Initialized right below
+            std::memcpy(&value, &data[offset], sizeof(float));
+            return get_float_host_byte_order(value, bigendian_data);
+        }
     } // namespace
 
-    sensor_msgs::msg::PointCloud2 to_ros2_pointcloud2(provizio::contained_pointcloud2 message)
+    sensor_msgs::msg::PointCloud2 to_ros2_pointcloud2(provizio::contained_pointcloud2 message, float snr_threshold)
     {
         sensor_msgs::msg::PointCloud2 result;
         result.header = to_ros2_header(std::move(message.header));
-        result.width = message.width;
         result.height = message.height;
         result.fields = to_ros2_point_fields(std::move(message.fields));
         result.is_bigendian = message.is_bigendian;
         result.point_step = message.point_step;
         result.row_step = message.row_step;
-        result.data = std::move(message.data);
         result.is_dense = message.is_dense;
+        if (snr_threshold <= 0.0F || message.height != 1)
+        {
+            // Output all points
+            result.width = message.width;
+            result.data = std::move(message.data);
+        }
+        else
+        {
+            // Apply SnR filter
+            std::uint32_t snr_offset = message.point_step;
+            for (const auto &field : message.fields)
+            {
+                if (field.name == snr_field_name && field.datatype == sensor_msgs::msg::PointField::FLOAT32 &&
+                    field.count == 1)
+                {
+                    snr_offset = field.offset;
+                    break;
+                }
+            }
+
+            if (snr_offset < message.point_step)
+            {
+                result.data.reserve(message.data.size());
+                for (std::size_t i = 0; i < message.width; ++i)
+                {
+                    if (get_float_from_buffer(message.data, i * message.point_step + snr_offset,
+                                              message.is_bigendian) >= snr_threshold)
+                    {
+                        // Add this point
+                        ++result.width;
+                        result.data.resize(std::size_t{message.point_step} * result.width);
+                        std::memcpy(&result.data[(result.width - 1) * message.point_step],
+                                    &message.data[i * message.point_step], message.point_step);
+                    }
+                }
+            }
+            else
+            {
+                // Can't filter by SNR as SNR field not found
+                result.width = message.width;
+                result.data = std::move(message.data);
+            }
+        }
         return result;
     }
 

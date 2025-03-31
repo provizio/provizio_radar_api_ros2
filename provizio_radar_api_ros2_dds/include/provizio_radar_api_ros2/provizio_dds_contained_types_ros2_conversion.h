@@ -19,7 +19,7 @@
 
 namespace provizio
 {
-    sensor_msgs::msg::PointCloud2 to_ros2_pointcloud2(provizio::contained_pointcloud2 message);
+    sensor_msgs::msg::PointCloud2 to_ros2_pointcloud2(provizio::contained_pointcloud2 message, float snr_threshold = 0);
     nav_msgs::msg::Odometry to_ros2_odometry(provizio::contained_odometry message);
     sensor_msgs::msg::Image to_ros2_image(provizio::contained_image message);
     geometry_msgs::msg::PolygonStamped to_ros2_polygon_stamped(

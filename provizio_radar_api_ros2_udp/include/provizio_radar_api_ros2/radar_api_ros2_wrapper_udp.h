@@ -82,16 +82,6 @@ namespace provizio
         std::unordered_map<std::uint16_t, std::int8_t> current_radar_ranges_by_frame_id;
     };
 
-    constexpr bool is_host_big_endian()
-    {
-        union {
-            uint32_t as_int;
-            char as_chars[4];
-        } testint = {0x01020304};
-
-        return testint.as_chars[0] == 1;
-    }
-
     void make_sure_sockets_initialized();
     builtin_interfaces::msg::Time ns_to_ros2_time(std::uint64_t timestamp);
     std::string radar_position_id_to_frame_id(provizio_radar_position position_id);

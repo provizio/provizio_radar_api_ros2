@@ -100,6 +100,7 @@ namespace provizio
 
         // Variables
         node_t &node;
+        float snr_threshold{default_snr_threshold};
         std::shared_ptr<void> dds_domain_participant;
         std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> ros2_radar_pc_publisher;
         std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> ros2_radar_pc_sr_publisher;
@@ -142,6 +143,8 @@ namespace provizio
             // Already active
             return false;
         }
+
+        snr_threshold = static_cast<float>(node.get_parameter(snr_threshold_param).as_double());
 
         // dds_domain_participant
         dds_domain_participant =
@@ -311,26 +314,24 @@ namespace provizio
     template <typename node_t>
     void radar_api_ros2_wrapper_dds<node_t>::on_radar_point_cloud(void *context, contained_pointcloud2 message)
     {
+        auto &self = *static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context);
         auto publisher =
-            static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
-                ->ros2_radar_pc_publisher; // To make sure it can't be destroyed by another thread during this call
+            self.ros2_radar_pc_publisher; // To make sure it can't be destroyed by another thread during this call
         if (publisher != nullptr)
         {
-            // TODO: respect snr_threshold_param
-            publisher->publish(to_ros2_pointcloud2(std::move(message)));
+            publisher->publish(to_ros2_pointcloud2(std::move(message), self.snr_threshold));
         }
     }
 
     template <typename node_t>
     void radar_api_ros2_wrapper_dds<node_t>::on_radar_point_cloud_sr(void *context, contained_pointcloud2 message)
     {
-        auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
-                             ->ros2_radar_pc_sr_publisher; // To make sure it can't be destroyed by another thread
-                                                           // during this call
+        auto &self = *static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context);
+        auto publisher = self.ros2_radar_pc_sr_publisher; // To make sure it can't be destroyed by another thread
+                                                          // during this call
         if (publisher != nullptr)
         {
-            // TODO: respect snr_threshold_param
-            publisher->publish(to_ros2_pointcloud2(std::move(message)));
+            publisher->publish(to_ros2_pointcloud2(std::move(message), self.snr_threshold));
         }
     }
 
