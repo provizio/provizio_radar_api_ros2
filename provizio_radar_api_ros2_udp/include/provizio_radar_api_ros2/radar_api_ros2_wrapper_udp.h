@@ -248,7 +248,7 @@ namespace provizio
                 field_ground_relative_radial_velocity_name;
             ros_point_cloud.fields[field_ground_relative_radial_velocity].offset =
                 offsetof(provizio_radar_point, ground_relative_radial_velocity_m_s);
-            ros_point_cloud.is_bigendian = is_host_big_endian();
+            ros_point_cloud.is_bigendian = is_host_big_endian;
             ros_point_cloud.point_step = sizeof(provizio_radar_point);
             if (self.snr_threshold <= 0.0F)
             {

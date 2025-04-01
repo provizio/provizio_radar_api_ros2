@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <assert.h>
+#include <cassert>
 
 #include <rclcpp/executors/multi_threaded_executor.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -25,12 +25,12 @@ namespace provizio
     class provizio_radar_api_ros2_lifecycle_node : public rclcpp_lifecycle::LifecycleNode
     {
       public:
-        provizio_radar_api_ros2_lifecycle_node(rclcpp::Executor &executor)
+        explicit provizio_radar_api_ros2_lifecycle_node(rclcpp::Executor &executor)
             : LifecycleNode("provizio_radar_api_ros2_lifecycle_node"), executor(executor)
         {
         }
 
-        CallbackReturn on_configure(const rclcpp_lifecycle::State &) override
+        CallbackReturn on_configure(const rclcpp_lifecycle::State & /*previous_state*/) override
         {
             if (api_wrapper)
             {
@@ -46,7 +46,7 @@ namespace provizio
             return CallbackReturn::SUCCESS;
         }
 
-        CallbackReturn on_activate(const rclcpp_lifecycle::State &) override
+        CallbackReturn on_activate(const rclcpp_lifecycle::State & /*previous_state*/) override
         {
             if (!api_wrapper)
             {
@@ -62,20 +62,18 @@ namespace provizio
                 return CallbackReturn::FAILURE;
             }
 
-            if (api_wrapper->activate())
-            {
-                is_active = true;
-                RCLCPP_INFO(get_logger(), "provizio_radar_api_ros2_lifecycle_node activated");
-                return CallbackReturn::SUCCESS;
-            }
-            else
+            if (!api_wrapper->activate())
             {
                 RCLCPP_ERROR(get_logger(), "provizio_radar_api_ros2_lifecycle_node failed to activate");
                 return CallbackReturn::FAILURE;
             }
+
+            is_active = true;
+            RCLCPP_INFO(get_logger(), "provizio_radar_api_ros2_lifecycle_node activated");
+            return CallbackReturn::SUCCESS;
         }
 
-        CallbackReturn on_deactivate(const rclcpp_lifecycle::State &) override
+        CallbackReturn on_deactivate(const rclcpp_lifecycle::State & /*previous_state*/) override
         {
             if (!api_wrapper)
             {
@@ -91,20 +89,18 @@ namespace provizio
                 return CallbackReturn::FAILURE;
             }
 
-            if (api_wrapper->deactivate())
-            {
-                is_active = false;
-                RCLCPP_INFO(get_logger(), "provizio_radar_api_ros2_lifecycle_node deactivated");
-                return CallbackReturn::SUCCESS;
-            }
-            else
+            if (!api_wrapper->deactivate())
             {
                 RCLCPP_ERROR(get_logger(), "provizio_radar_api_ros2_lifecycle_node failed to deactivate");
                 return CallbackReturn::FAILURE;
             }
+
+            is_active = false;
+            RCLCPP_INFO(get_logger(), "provizio_radar_api_ros2_lifecycle_node deactivated");
+            return CallbackReturn::SUCCESS;
         }
 
-        CallbackReturn on_cleanup(const rclcpp_lifecycle::State &) override
+        CallbackReturn on_cleanup(const rclcpp_lifecycle::State & /*previous_state*/) override
         {
             cleanup();
 
@@ -112,7 +108,7 @@ namespace provizio
             return CallbackReturn::SUCCESS;
         }
 
-        CallbackReturn on_shutdown(const rclcpp_lifecycle::State &) override
+        CallbackReturn on_shutdown(const rclcpp_lifecycle::State & /*previous_state*/) override
         {
             cleanup();
 

@@ -7,5 +7,5 @@ add_library(${PROJECT}_dds STATIC
 )
 target_include_directories(${PROJECT}_dds PUBLIC include ${PROJECT}_provizio_dds_contained/include "${CMAKE_SOURCE_DIR}/include")
 add_dependencies(${PROJECT}_dds ${PROJECT}_provizio_dds_contained)
-ament_target_dependencies(${PROJECT}_dds rclcpp sensor_msgs nav_msgs)
-target_link_libraries(${PROJECT}_dds ${TYPESUPPORT})
+ament_target_dependencies(${PROJECT}_dds SYSTEM PUBLIC rclcpp sensor_msgs nav_msgs)
+target_link_libraries(${PROJECT}_dds PUBLIC ${TYPESUPPORT})

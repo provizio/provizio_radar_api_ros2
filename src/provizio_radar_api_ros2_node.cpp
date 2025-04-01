@@ -22,7 +22,7 @@ namespace provizio
     class provizio_radar_api_ros2_node : public rclcpp::Node
     {
       public:
-        provizio_radar_api_ros2_node(rclcpp::Executor &executor)
+        explicit provizio_radar_api_ros2_node(rclcpp::Executor &executor)
             : Node("provizio_radar_api_ros2_node"),
               api_wrapper(std::make_unique<radar_api_ros2_wrapper<rclcpp::Node>>(*this, executor))
         {

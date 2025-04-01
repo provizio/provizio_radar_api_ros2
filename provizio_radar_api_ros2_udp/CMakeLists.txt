@@ -2,7 +2,7 @@ include(ExternalProject)
 
 add_library(${PROJECT}_udp STATIC src/radar_api_ros2_wrapper_udp.cpp src/constants_udp.cpp)
 target_include_directories(${PROJECT}_udp PUBLIC include "${CMAKE_SOURCE_DIR}/include")
-ament_target_dependencies(${PROJECT}_udp PUBLIC rclcpp sensor_msgs nav_msgs)
+ament_target_dependencies(${PROJECT}_udp SYSTEM PUBLIC rclcpp sensor_msgs nav_msgs)
 target_link_libraries(${PROJECT}_udp PUBLIC ${TYPESUPPORT})
 
 # Resolve provizio_radar_api_core (https://github.com/provizio/provizio_radar_api_core)

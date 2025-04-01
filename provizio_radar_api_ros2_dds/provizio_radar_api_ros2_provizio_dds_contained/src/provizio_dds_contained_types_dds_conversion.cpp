@@ -12,10 +12,7 @@ namespace provizio
     {
         provizio::contained_time to_contained_time(const builtin_interfaces::msg::Time &stamp)
         {
-            provizio::contained_time result;
-            result.sec = stamp.sec();
-            result.nanosec = stamp.nanosec();
-            return result;
+            return {stamp.sec(), stamp.nanosec()};
         }
 
         builtin_interfaces::msg::Time to_dds_time(const provizio::contained_time &stamp)
@@ -75,36 +72,24 @@ namespace provizio
 
         contained_pose to_contained_pose(const geometry_msgs::msg::Pose &pose)
         {
-            contained_pose result;
-            result.position = to_contained_vector3(pose.position());
-            result.orientation = to_contained_quaternion(pose.orientation());
-            return result;
+            return {to_contained_vector3(pose.position()), to_contained_quaternion(pose.orientation())};
         }
 
         contained_pose_with_covariance to_contained_pose_with_covariance(
             const geometry_msgs::msg::PoseWithCovariance &pose)
         {
-            contained_pose_with_covariance result;
-            result.pose = to_contained_pose(pose.pose());
-            result.covariance = pose.covariance();
-            return result;
+            return {to_contained_pose(pose.pose()), pose.covariance()};
         }
 
         contained_twist to_contained_twist(const geometry_msgs::msg::Twist &twist)
         {
-            contained_twist result;
-            result.linear = to_contained_vector3(twist.linear());
-            result.angular = to_contained_vector3(twist.angular());
-            return result;
+            return {to_contained_vector3(twist.linear()), to_contained_vector3(twist.angular())};
         }
 
         contained_twist_with_covariance to_contained_twist_with_covariance(
             const geometry_msgs::msg::TwistWithCovariance &twist)
         {
-            contained_twist_with_covariance result;
-            result.twist = to_contained_twist(twist.twist());
-            result.covariance = twist.covariance();
-            return result;
+            return {to_contained_twist(twist.twist()), twist.covariance()};
         }
     } // namespace
 

@@ -85,7 +85,7 @@ extern "C"
     bool provizio_dds_contained_publish_set_radar_range(const std::shared_ptr<void> &publisher,
                                                         provizio::contained_set_radar_range message)
     {
-        auto message_to_publish = provizio::to_dds_set_radar_range(message);
+        auto message_to_publish = provizio::to_dds_set_radar_range(std::move(message));
         return std::static_pointer_cast<provizio::dds::publisher_handle<provizio::msg::set_radar_rangePubSubType>>(
                    publisher)
             ->publish(message_to_publish);

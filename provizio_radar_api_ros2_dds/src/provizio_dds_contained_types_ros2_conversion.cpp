@@ -20,10 +20,7 @@ namespace provizio
 
         provizio::contained_time to_contained_time(const builtin_interfaces::msg::Time &stamp)
         {
-            provizio::contained_time result;
-            result.sec = stamp.sec;
-            result.nanosec = stamp.nanosec;
-            return result;
+            return {stamp.sec, stamp.nanosec};
         }
 
         std_msgs::msg::Header to_ros2_header(provizio::contained_header header)
@@ -36,10 +33,7 @@ namespace provizio
 
         provizio::contained_header to_contained_header(std_msgs::msg::Header header)
         {
-            provizio::contained_header result;
-            result.frame_id = std::move(header.frame_id);
-            result.stamp = to_contained_time(header.stamp);
-            return result;
+            return {std::move(header.frame_id), to_contained_time(header.stamp)};
         }
 
         sensor_msgs::msg::PointField to_ros2_point_field(provizio::contained_point_field &&field)
@@ -90,11 +84,11 @@ namespace provizio
             return result;
         }
 
-        geometry_msgs::msg::PoseWithCovariance to_ros2_pose_with_covariance(contained_pose_with_covariance pose)
+        geometry_msgs::msg::PoseWithCovariance to_ros2_pose_with_covariance(const contained_pose_with_covariance &pose)
         {
             geometry_msgs::msg::PoseWithCovariance result;
             result.pose = to_ros2_pose(pose.pose);
-            result.covariance = std::move(pose.covariance);
+            result.covariance = pose.covariance;
             return result;
         }
 
@@ -107,21 +101,21 @@ namespace provizio
         }
 
         geometry_msgs::msg::TwistWithCovariance to_ros2_twist_with_covariance(
-            provizio::contained_twist_with_covariance twist)
+            const provizio::contained_twist_with_covariance &twist)
         {
             geometry_msgs::msg::TwistWithCovariance result;
             result.twist = to_ros2_twist(twist.twist);
-            result.covariance = std::move(twist.covariance);
+            result.covariance = twist.covariance;
             return result;
         }
 
         float get_float_host_byte_order(float value, const bool value_byte_order_bigendian)
         {
-            if (value_byte_order_bigendian != is_host_big_endian())
+            if (value_byte_order_bigendian != is_host_big_endian)
             {
                 // Byte order needs to be reversed
                 std::uint32_t value_as_uint32_t; // NOLINT: Initialized right below
-                assert(sizeof(value_as_uint32_t) == sizeof(value));
+                static_assert(sizeof(value_as_uint32_t) == sizeof(value), "uint32_t and float sizes mismatch!");
                 memcpy(&value_as_uint32_t, &value, sizeof(value_as_uint32_t));
 
                 // Clang-tidy has a number of complains regarding the expression below, but we really have to do a
@@ -150,12 +144,12 @@ namespace provizio
         }
     } // namespace
 
-    sensor_msgs::msg::PointCloud2 to_ros2_pointcloud2(provizio::contained_pointcloud2 message, const float snr_threshold)
+    sensor_msgs::msg::PointCloud2 to_ros2_pointcloud2(provizio::contained_pointcloud2 message,
+                                                      const float snr_threshold)
     {
         sensor_msgs::msg::PointCloud2 result;
         result.header = to_ros2_header(std::move(message.header));
         result.height = message.height;
-        result.fields = to_ros2_point_fields(std::move(message.fields));
         result.is_bigendian = message.is_bigendian;
         result.point_step = message.point_step;
         result.row_step = message.row_step;
@@ -191,7 +185,7 @@ namespace provizio
                         // Add this point
                         ++result.width;
                         result.data.resize(std::size_t{message.point_step} * result.width);
-                        std::memcpy(&result.data[(result.width - 1) * message.point_step],
+                        std::memcpy(&result.data[std::size_t{result.width - 1} * message.point_step],
                                     &message.data[i * message.point_step], message.point_step);
                     }
                 }
@@ -203,6 +197,7 @@ namespace provizio
                 result.data = std::move(message.data);
             }
         }
+        result.fields = to_ros2_point_fields(std::move(message.fields));
         return result;
     }
 
@@ -211,8 +206,8 @@ namespace provizio
         nav_msgs::msg::Odometry result;
         result.header = to_ros2_header(std::move(message.header));
         result.child_frame_id = std::move(message.child_frame_id);
-        result.pose = to_ros2_pose_with_covariance(std::move(message.pose));
-        result.twist = to_ros2_twist_with_covariance(std::move(message.twist));
+        result.pose = to_ros2_pose_with_covariance(message.pose);
+        result.twist = to_ros2_twist_with_covariance(message.twist);
         return result;
     }
 

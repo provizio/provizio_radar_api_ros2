@@ -11,7 +11,7 @@ namespace provizio
     struct contained_time
     {
         std::int32_t sec;
-        std::int32_t nanosec;
+        std::uint32_t nanosec;
     };
 
     struct contained_header
