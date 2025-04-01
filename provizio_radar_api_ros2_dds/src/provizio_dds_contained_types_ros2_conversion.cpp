@@ -150,7 +150,7 @@ namespace provizio
         }
     } // namespace
 
-    sensor_msgs::msg::PointCloud2 to_ros2_pointcloud2(provizio::contained_pointcloud2 message, float snr_threshold)
+    sensor_msgs::msg::PointCloud2 to_ros2_pointcloud2(provizio::contained_pointcloud2 message, const float snr_threshold)
     {
         sensor_msgs::msg::PointCloud2 result;
         result.header = to_ros2_header(std::move(message.header));
