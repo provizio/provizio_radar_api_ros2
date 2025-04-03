@@ -9,7 +9,7 @@
 namespace provizio
 {
     constexpr float default_snr_threshold = 0.0F;
-    constexpr bool function_enabled_by_default = true;
+    constexpr bool feature_enabled_by_default = true;
     extern const std::string default_radar_pc_ros2_topic_name;
     extern const std::string default_radar_pc_sr_ros2_topic_name;
     extern const std::string default_entities_radar_ros2_topic_name;

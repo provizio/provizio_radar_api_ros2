@@ -49,17 +49,17 @@ namespace provizio
             // Declare all of the Node parameters
             declare_common_parameters(node);
             node.declare_parameter(dds_domain_id_param, static_cast<int>(default_dds_domain_id));
-            node.declare_parameter(publish_radar_pc_sr_param, function_enabled_by_default);
-            node.declare_parameter(publish_entities_radar_param, function_enabled_by_default);
-            node.declare_parameter(publish_entities_camera_param, function_enabled_by_default);
-            node.declare_parameter(publish_entities_fusion_param, function_enabled_by_default);
-            node.declare_parameter(publish_radar_odometry_param, function_enabled_by_default);
-            node.declare_parameter(publish_camera_param, function_enabled_by_default);
-            node.declare_parameter(publish_radar_freespace_param, function_enabled_by_default);
-            node.declare_parameter(publish_camera_freespace_param, function_enabled_by_default);
+            node.declare_parameter(publish_radar_pc_sr_param, feature_enabled_by_default);
+            node.declare_parameter(publish_entities_radar_param, feature_enabled_by_default);
+            node.declare_parameter(publish_entities_camera_param, feature_enabled_by_default);
+            node.declare_parameter(publish_entities_fusion_param, feature_enabled_by_default);
+            node.declare_parameter(publish_radar_odometry_param, feature_enabled_by_default);
+            node.declare_parameter(publish_camera_param, feature_enabled_by_default);
+            node.declare_parameter(publish_radar_freespace_param, feature_enabled_by_default);
+            node.declare_parameter(publish_camera_freespace_param, feature_enabled_by_default);
 #if PROVIZIO_POLYGON_INSTANCE_AVAILABLE
-            node.declare_parameter(publish_radar_freespace_instance_param, function_enabled_by_default);
-            node.declare_parameter(publish_camera_freespace_instance_param, function_enabled_by_default);
+            node.declare_parameter(publish_radar_freespace_instance_param, feature_enabled_by_default);
+            node.declare_parameter(publish_camera_freespace_instance_param, feature_enabled_by_default);
 #endif
             node.declare_parameter(radar_pc_sr_ros2_topic_name_param, default_radar_pc_sr_ros2_topic_name);
             node.declare_parameter(entities_radar_ros2_topic_name_param, default_entities_radar_ros2_topic_name);
