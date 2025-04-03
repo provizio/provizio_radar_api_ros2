@@ -19,6 +19,8 @@ namespace provizio
     extern const std::string publish_camera_param;
     extern const std::string publish_radar_freespace_param;
     extern const std::string publish_radar_freespace_instance_param;
+    extern const std::string publish_camera_freespace_param;
+    extern const std::string publish_camera_freespace_instance_param;
     extern const std::string publish_radar_info_param;
     extern const std::string serve_set_radar_range_param;
     extern const std::string radar_pc_sr_ros2_topic_name_param;
@@ -29,6 +31,8 @@ namespace provizio
     extern const std::string camera_ros2_topic_name_param;
     extern const std::string radar_freespace_ros2_topic_name_param;
     extern const std::string radar_freespace_ros2_instance_topic_name_param;
+    extern const std::string camera_freespace_ros2_topic_name_param;
+    extern const std::string camera_freespace_ros2_instance_topic_name_param;
     extern const std::string radar_info_ros2_topic_name_param;
     extern const std::string set_radar_range_ros2_service_name_param;
     extern const std::string radar_pc_dds_topic_name;
@@ -39,6 +43,7 @@ namespace provizio
     extern const std::string radar_odometry_dds_topic_name;
     extern const std::string camera_dds_topic_name;
     extern const std::string radar_freespace_dds_topic_name;
+    extern const std::string camera_freespace_dds_topic_name;
     extern const std::string radar_info_dds_topic_name;
     extern const std::string set_radar_range_dds_topic_name;
 } // namespace provizio

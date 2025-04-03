@@ -31,6 +31,10 @@ namespace provizio
         "/provizio/radar_freespace/stamped";
     const std::string default_radar_freespace_ros2_instance_topic_name = // NOLINT: Never throws
         "/provizio/radar_freespace/instance_stamped";
+    const std::string default_camera_freespace_ros2_topic_name = // NOLINT: Never throws
+        "/provizio/camera_freespace/stamped";
+    const std::string default_camera_freespace_ros2_instance_topic_name = // NOLINT: Never throws
+        "/provizio/camera_freespace/instance_stamped";
     const std::string default_radar_info_ros2_topic_name = "/provizio/radar_info";             // NOLINT: Never throws
     const std::string default_set_radar_range_ros2_service_name = "/provizio/set_radar_range"; // NOLINT: Never throws
     const std::string publish_radar_pc_param = "publish_radar_pc";                             // NOLINT: Never throws
