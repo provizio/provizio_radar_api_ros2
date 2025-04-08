@@ -13,6 +13,8 @@ namespace provizio
     const std::string publish_camera_freespace_param = "publish_camera_freespace"; // NOLINT: Never throws
     const std::string publish_radar_freespace_instance_param =                     // NOLINT: Never throws
         "publish_radar_freespace_instance";
+    const std::string publish_camera_freespace_instance_param = // NOLINT: Never throws
+        "publish_camera_freespace_instance";
     const std::string radar_pc_sr_ros2_topic_name_param = "radar_pc_sr_topic";         // NOLINT: Never throws
     const std::string entities_radar_ros2_topic_name_param = "entities_radar_topic";   // NOLINT: Never throws
     const std::string entities_camera_ros2_topic_name_param = "entities_camera_topic"; // NOLINT: Never throws

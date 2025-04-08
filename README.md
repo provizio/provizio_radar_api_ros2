@@ -36,13 +36,15 @@ This ROS2 driver then can be leveraged to overcome all of these limitations. In 
 
 ### Running the built nodes
 
-From the root of your ROS2 workspace, run as:
+From the root of your ROS2 workspace:
 
-`ros2 run provizio_radar_api_ros2 provizio_radar_node [--ros-args -p <parameter>:=<value> ...]`
+1. Source the built workspace, f.e. `source install/setup.bash`
+2. Run the node:
+   `ros2 run provizio_radar_api_ros2 provizio_radar_node [--ros-args -p <parameter>:=<value> ...]`
 
-or
+   or
 
-`ros2 run provizio_radar_api_ros2 provizio_radar_lifecycle_node [--ros-args -p <parameter>:=<value> ...]`
+   `ros2 run provizio_radar_api_ros2 provizio_radar_lifecycle_node [--ros-args -p <parameter>:=<value> ...]`
 
 For more details on supported parameters, please see below.
 

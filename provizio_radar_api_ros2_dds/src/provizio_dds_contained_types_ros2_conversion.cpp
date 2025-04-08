@@ -254,7 +254,7 @@ namespace provizio
     geometry_msgs::msg::PolygonInstanceStamped to_ros2_polygon_instance_stamped(
         const provizio::contained_polygon_instance_stamped &message)
     {
-        geometry_msgs::msg::PolygonStamped result;
+        geometry_msgs::msg::PolygonInstanceStamped result;
         result.header = to_ros2_header(message.header);
         result.polygon = to_ros2_polygon_instance(message.polygon);
         return result;
