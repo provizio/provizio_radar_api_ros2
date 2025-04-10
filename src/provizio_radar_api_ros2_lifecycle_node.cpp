@@ -26,7 +26,7 @@ namespace provizio
     {
       public:
         explicit provizio_radar_api_ros2_lifecycle_node(rclcpp::Executor &executor)
-            : LifecycleNode("provizio_radar_api_ros2_lifecycle_node"), executor(executor)
+            : LifecycleNode("provizio_radar_lifecycle_node"), executor(executor)
         {
         }
 
@@ -135,8 +135,8 @@ int main(int argc, char *argv[])
 
     rclcpp::executors::MultiThreadedExecutor executor;
     auto node = std::make_shared<provizio::provizio_radar_api_ros2_lifecycle_node>(executor);
-    auto node_base_interface = node->get_node_base_interface();
-    executor.add_node(node_base_interface);
+    auto base_interface = node->get_node_base_interface();
+    executor.add_node(base_interface);
 
     RCLCPP_INFO(node->get_logger(), "provizio_radar_api_ros2_lifecycle_node started");
 
@@ -144,7 +144,8 @@ int main(int argc, char *argv[])
 
     RCLCPP_INFO(node->get_logger(), "provizio_radar_api_ros2_lifecycle_node finished");
 
-    executor.remove_node(node_base_interface);
+    executor.remove_node(base_interface);
+    base_interface.reset();
     node.reset();
 
     rclcpp::shutdown();
