@@ -259,7 +259,7 @@ namespace provizio
             }
             else
             {
-                // Apply SnR filter
+                // Apply SNR filter
                 ros_point_cloud.width = 0;
                 ros_point_cloud.data.reserve(ros_point_cloud.point_step * point_cloud->num_points_received);
                 for (std::size_t i = 0; i < point_cloud->num_points_received; ++i)

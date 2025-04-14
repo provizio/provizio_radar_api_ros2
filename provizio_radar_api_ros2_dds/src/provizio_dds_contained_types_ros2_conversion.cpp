@@ -162,7 +162,7 @@ namespace provizio
         }
         else
         {
-            // Apply SnR filter
+            // Apply SNR filter
             std::uint32_t snr_offset = message.point_step;
             for (const auto &field : message.fields)
             {
