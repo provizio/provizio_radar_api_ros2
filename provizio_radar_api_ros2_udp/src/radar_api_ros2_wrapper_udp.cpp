@@ -6,13 +6,15 @@ namespace provizio
 {
     namespace
     {
-        const std::string frame_id_prefix = "provizio_radar_"; // NOLINT: Can't throw
+        // NOLINTBEGIN: These global constants don't throw on construction
+        const std::string frame_id_prefix = "provizio_radar_";
         const std::string frame_id_front_center = frame_id_prefix + "front_center";
         const std::string frame_id_front_left = frame_id_prefix + "front_left";
         const std::string frame_id_front_right = frame_id_prefix + "front_right";
         const std::string frame_id_rear_left = frame_id_prefix + "rear_left";
         const std::string frame_id_rear_right = frame_id_prefix + "rear_right";
         const std::string frame_id_rear_center = frame_id_prefix + "rear_center";
+        // NOLINTEND
     } // namespace
 
     void make_sure_sockets_initialized()

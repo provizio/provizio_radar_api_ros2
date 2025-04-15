@@ -3,6 +3,10 @@
 ROS 2 Driver for Provizio radars. Provides access to the full runtime APIs. Both [DDS-based](https://github.com/provizio/provizio_dds) and [UDP-based](https://github.com/provizio/provizio_radar_api_core) Provizio Radar APIs are supported.
 It provides both regular and [managed (lifecycle)](https://design.ros2.org/articles/node_lifecycle.html) ROS 2 nodes.
 
+## APIs Notes
+
+The primary radar API in Provizio radars is [DDS API](https://github.com/provizio/provizio_dds) - it provides full functionality and allows for flexible configuration while being completely functional out-of-box in most environments. For stricter setups, there is also [UDP API](https://github.com/provizio/provizio_radar_api_core) that requires no dynamic memory allocation, multi-threading or using other "unsafe" language features. At the moment it only provides access to the most basic functionality of Provizio radars, but may be extended in the future.
+
 ## DDS API Notes
 
 *Isn't applicable when built with `-DPROVIZIO_RADAR_API="udp"`*
@@ -188,7 +192,7 @@ Contains polygon "id" and can be used for unoccupied and other type of regions.
 
 #### UDP API
 
-- `max_radars` (int). Default: `6`. The maximum number of Provizio radars in the local network that can be handled by the node.
+- `max_radars` (int). Default: `6`. The maximum number of Provizio radars in the local network that can be handled by the node. The UDP API implementation needs all the required memory to be allocated in advance. Every radar's context takes over 3Mb of memory, so limiting the number of maximum radars in the setup significantly reduces memory consumption.
 - `point_clouds_udp_port` (int16). Default: `7769`. The port number used to send radar point clouds over Provizio UDP protocol.
 - `set_range_udp_port` (int16). Default: `7770`. The port number used to set current radar range over Provizio UDP protocol.
 
