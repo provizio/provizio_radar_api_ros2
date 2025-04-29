@@ -18,6 +18,7 @@ import sys
 
 def main(args=None):
     # TODO: Actual tests
+    print("TODO: UDP implementation tests")
     return 0
 
 if __name__ == "__main__":

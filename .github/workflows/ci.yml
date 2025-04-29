@@ -27,3 +27,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: .github/workflows/test.sh ${{matrix.ros}} ${{matrix.cc}} ${{matrix.api}} ${{matrix.build_type}} ${STATIC_ANALYSIS}
+      - name: Docker Cleanup
+        if: always()
+        run: docker rm -f provizio_radar_api_ros2_test_${{matrix.ros}} ; docker rmi -f provizio_radar_api_ros2_test:${{matrix.ros}} ; docker system prune -af

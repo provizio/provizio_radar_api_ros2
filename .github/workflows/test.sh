@@ -38,4 +38,4 @@ docker build \
     --tag ${CONTAINER_TAG} .
 
 # shellcheck disable=SC2086
-docker run --entrypoint "/bin/bash" ${CONTAINER_TAG} -c "source install/setup.bash && source test_env/bin/activate && python3 install/provizio_radar_api_ros2/lib/test_all.py"
+docker run --name provizio_radar_api_ros2_test_${ROS_DISTRO} --entrypoint "/bin/bash" ${CONTAINER_TAG} -c "source install/setup.bash && source test_env/bin/activate && python3 install/provizio_radar_api_ros2/lib/test_all.py"
