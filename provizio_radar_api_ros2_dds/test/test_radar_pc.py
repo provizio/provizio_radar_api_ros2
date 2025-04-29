@@ -16,7 +16,6 @@
 
 import sys
 from sensor_msgs.msg import PointCloud2
-import sensor_msgs_py.point_cloud2 as pc2
 import test_framework
 
 dds_domain_id = 17
@@ -51,7 +50,7 @@ class TestNode(test_framework.Node):
             # Don't overwrite the result
             return
 
-        points = pc2.read_points_list(msg)
+        points = test_framework.read_points_list(msg)
         if str(points) != expected_points and str(points) != expected_points_np:
             print(
                 f"{test_name}: {points} received, {expected_points} was expected",
@@ -82,6 +81,7 @@ def main(args=None):
         rclpy_args=args,
         node_args=[["provizio_dds_domain_id", dds_domain_id]],
     )
+    # TODO: Test with SNR filter too
 
 
 if __name__ == "__main__":

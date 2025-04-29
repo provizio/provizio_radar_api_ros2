@@ -21,8 +21,13 @@ import rclpy
 import rclpy.node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 import signal
+from sensor_msgs.msg import PointCloud2
+import sensor_msgs_py.point_cloud2 as pc2
 import subprocess
 import time
+from collections import namedtuple
+from typing import Iterable, List, NamedTuple, Optional
+
 
 package_name = "provizio_radar_api_ros2"
 
@@ -191,7 +196,7 @@ def run(
                     timeout_sec=timeout_sec,
                     lifecycle_node=i,
                     node_args=node_args,
-                    rclpy_args=rclpy_args
+                    rclpy_args=rclpy_args,
                 )
                 if result != 0:
                     return result
@@ -224,7 +229,7 @@ def run(
                 if result != 0:
                     return result
             return 0
-        
+
         case RunNodes.SIMPLE:
             return _do_run(
                     test_name=test_name,
@@ -235,7 +240,7 @@ def run(
                     node_args=node_args,
                     rclpy_args=rclpy_args
                 )
-            
+
         case RunNodes.LIFECYCLE:
             return _do_run(
                     test_name=test_name,
@@ -246,3 +251,37 @@ def run(
                     node_args=node_args,
                     rclpy_args=rclpy_args
                 )
+
+
+def read_points_list(
+    cloud: PointCloud2,
+    field_names: Optional[List[str]] = None,
+    skip_nans: bool = False,
+    uvs: Optional[Iterable] = None,
+    tuple_name: str = "Point",
+) -> List[NamedTuple]:
+    """
+    Read points from a provizio_dds.PointCloud2 message.
+
+    This function returns a list of namedtuples. It operates on top of the
+    read_points method. For more efficient access use read_points directly.
+
+    :param cloud: The point cloud to read from. (Type: provizio_dds.PointCloud2)
+    :param field_names: The names of fields to read. If None, read all fields.
+                        (Type: Iterable, Default: None)
+    :param skip_nans: If True, then don't return any point with a NaN value.
+                      (Type: Bool, Default: False)
+    :param uvs: If specified, then only return the points at the given
+                coordinates. (Type: Iterable, Default: None]
+    :return: List of namedtuples containing the values for each point
+    """
+    assert isinstance(cloud, PointCloud2), "cloud is not a provizio_dds.PointCloud2"
+
+    if field_names is None:
+        field_names = pc2.dtype_from_fields(
+            cloud.fields, point_step=cloud.point_step
+        ).names
+
+    Point = namedtuple(tuple_name, field_names)
+
+    return [Point._make(p) for p in pc2.read_points(cloud, field_names, skip_nans, uvs)]

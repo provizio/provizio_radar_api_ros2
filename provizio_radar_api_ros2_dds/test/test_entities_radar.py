@@ -18,12 +18,12 @@ import sys
 from sensor_msgs.msg import PointCloud2
 import test_framework
 
-dds_domain_id = 18
+dds_domain_id = 19
 timeout_sec = 8.0
-test_name = "test_radar_pc_sr"
-frame_id = "test_radar_pc_sr_frame"
-expected_points = "[Point(x=-0.1, y=-0.2, z=-0.3, radar_relative_radial_velocity=-0.4, signal_to_noise_ratio=50.0, ground_relative_radial_velocity=-0.6), Point(x=-1.0, y=-2.0, z=-3.0, radar_relative_radial_velocity=-4.0, signal_to_noise_ratio=500.0, ground_relative_radial_velocity=-6.0)]"
-expected_points_np = "[Point(x=np.float32(-0.1), y=np.float32(-0.2), z=np.float32(-0.3), radar_relative_radial_velocity=np.float32(-0.4), signal_to_noise_ratio=np.float32(50.0), ground_relative_radial_velocity=np.float32(-0.6)), Point(x=np.float32(-1.0), y=np.float32(-2.0), z=np.float32(-3.0), radar_relative_radial_velocity=np.float32(-4.0), signal_to_noise_ratio=np.float32(500.0), ground_relative_radial_velocity=np.float32(-6.0))]"
+test_name = "test_entities_radar"
+frame_id = "test_entities_radar_frame"
+expected_entities = "[Entity(entity_id=np.uint32(1), entity_class=np.uint8(2), x=np.float32(3.3), y=np.float32(4.4), z=np.float32(5.5), radar_relative_radial_velocity=np.float32(6.6), ground_relative_radial_velocity=np.float32(7.7), orientation_0=np.float32(8.8), orientation_1=np.float32(9.9), orientation_2=np.float32(10.1), orientation_3=np.float32(11.11), size_0=np.float32(12.12), size_1=np.float32(13.13), size_2=np.float32(14.14), entity_confidence=np.uint8(15), entity_class_confidence=np.uint8(16)), Entity(entity_id=np.uint32(101), entity_class=np.uint8(102), x=np.float32(-3.3), y=np.float32(-4.4), z=np.float32(-5.5), radar_relative_radial_velocity=np.float32(-6.6), ground_relative_radial_velocity=np.float32(-7.7), orientation_0=np.float32(-8.8), orientation_1=np.float32(-9.9), orientation_2=np.float32(-10.1), orientation_3=np.float32(-11.11), size_0=np.float32(-12.12), size_1=np.float32(-13.13), size_2=np.float32(-14.14), entity_confidence=np.uint8(115), entity_class_confidence=np.uint8(116))]"
+expected_entities_np = "[Entity(entity_id=1, entity_class=2, x=3.3, y=4.4, z=5.5, radar_relative_radial_velocity=6.6, ground_relative_radial_velocity=7.7, orientation_0=8.8, orientation_1=9.9, orientation_2=10.1, orientation_3=11.11, size_0=12.12, size_1=13.13, size_2=14.14, entity_confidence=15, entity_class_confidence=16), Entity(entity_id=101, entity_class=102, x=-3.3, y=-4.4, z=-5.5, radar_relative_radial_velocity=-6.6, ground_relative_radial_velocity=-7.7, orientation_0=-8.8, orientation_1=-9.9, orientation_2=-10.1, orientation_3=-11.11, size_0=-12.12, size_1=-13.13, size_2=-14.14, entity_confidence=115, entity_class_confidence=116)]"
 num_messages_needed = 10
 
 
@@ -32,7 +32,7 @@ class TestNode(test_framework.Node):
         super().__init__(test_name)
         self.subscription = self.create_subscription(
             PointCloud2,
-            "/provizio/radar_point_cloud_sr",
+            "/provizio/entities/radar",
             self.listener_callback,
             qos_profile=self.qos_profile,
         )
@@ -50,8 +50,8 @@ class TestNode(test_framework.Node):
             # Don't overwrite the result
             return
 
-        points = test_framework.read_points_list(msg)
-        if str(points) != expected_points and str(points) != expected_points_np:
+        points = test_framework.read_points_list(msg, tuple_name="Entity")
+        if str(points) != expected_entities and str(points) != expected_entities_np:
             print(
                 f"{test_name}: {points} received, {expected_points} was expected",
                 file=sys.stderr,
@@ -72,7 +72,7 @@ def main(args=None):
     return test_framework.run(
         test_name=test_name,
         synthetic_data_dds_args=[
-            "--radar_pc_sr",
+            "--radar_entities",
             f"--frame_id={frame_id}",
             f"--dds_domain_id={dds_domain_id}",
         ],
@@ -81,7 +81,6 @@ def main(args=None):
         rclpy_args=args,
         node_args=[["provizio_dds_domain_id", dds_domain_id]],
     )
-    # TODO: Test with SNR filter too
 
 
 if __name__ == "__main__":

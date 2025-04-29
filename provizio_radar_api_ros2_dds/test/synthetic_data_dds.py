@@ -32,6 +32,45 @@ radar_pc_sr_points = [
     [-0.1, -0.2, -0.3, -0.4, 50.0, -0.6],
     [-1.0, -2.0, -3.0, -4.0, 500.0, -6.0],
 ]
+radar_entities_topic_name = "rt/provizio_entities"
+radar_entities = [
+    [
+        1,
+        2,
+        3.3,
+        4.4,
+        5.5,
+        6.6,
+        7.7,
+        8.8,
+        9.9,
+        10.10,
+        11.11,
+        12.12,
+        13.13,
+        14.14,
+        15,
+        16,
+    ],
+    [
+        101,
+        102,
+        -3.3,
+        -4.4,
+        -5.5,
+        -6.6,
+        -7.7,
+        -8.8,
+        -9.9,
+        -10.10,
+        -11.11,
+        -12.12,
+        -13.13,
+        -14.14,
+        115,
+        116,
+    ],
+]
 
 
 def spin(name, iteration_function, stop_event, period, *args, **kwargs):
@@ -89,6 +128,29 @@ def publish_radar_pc(
         return publisher.publish(
             provizio_dds.point_cloud2.make_radar_point_cloud(
                 make_header(frame_id), points
+            )
+        )
+
+    return spin(name, publish, stop_event, publish_period)
+
+
+def publish_radar_entities(
+    participant,
+    stop_event,
+    name="publish_radar_entities",
+    topic_name=radar_entities_topic_name,
+    frame_id=default_frame_id,
+    entities=radar_entities,
+    publish_period=0.1,
+):
+    publisher = provizio_dds.Publisher(
+        participant, topic_name, provizio_dds.PointCloud2PubSubType
+    )
+
+    def publish():
+        return publisher.publish(
+            provizio_dds.point_cloud2.make_radar_entities(
+                make_header(frame_id), entities
             )
         )
 
@@ -206,6 +268,17 @@ def run(arguments=None):
                 points=radar_pc_sr_points,
             )
         )
+    if args.radar_entities:
+        threads.append(
+            publish_radar_entities(
+                participant,
+                stop_event,
+                name="publish_radar_entities",
+                topic_name=radar_entities_topic_name,
+                frame_id=args.frame_id,
+                entities=radar_entities,
+            )
+        )
 
     return threads
 
@@ -217,8 +290,10 @@ def stop(threads=None):
         for thread in threads:
             thread.join()
 
+
 def running():
     return stop_event is not None and not stop_event.is_set()
+
 
 def main():
     for thread in run():
