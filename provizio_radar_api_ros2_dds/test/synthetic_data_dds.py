@@ -71,6 +71,48 @@ radar_entities = [
         116,
     ],
 ]
+camera_entities_topic_name = "rt/provizio_entities_camera"
+camera_entities = [
+    [
+        1,
+        2,
+        3.0,
+        4.0,
+        5.0,
+        6.0,
+        7.0,
+        8.0,
+        9.0,
+        10,
+        11,
+    ]
+]
+fused_entities_topic_name = "rt/provizio_entities_fusion"
+fused_entities = [
+    [
+        1,
+        2,
+        3,
+        4.0,
+        5.0,
+        6.0,
+        7.0,
+        8.0,
+        9.0,
+        10.0,
+        11.0,
+        12.0,
+        13.0,
+        14.0,
+        15.0,
+        16.0,
+        17.0,
+        18.0,
+        19.0,
+        20,
+        21
+    ]
+]
 
 
 def spin(name, iteration_function, stop_event, period, *args, **kwargs):
@@ -134,7 +176,7 @@ def publish_radar_pc(
     return spin(name, publish, stop_event, publish_period)
 
 
-def publish_radar_entities(
+def publish_entities(
     participant,
     stop_event,
     name="publish_radar_entities",
@@ -142,6 +184,7 @@ def publish_radar_entities(
     frame_id=default_frame_id,
     entities=radar_entities,
     publish_period=0.1,
+    make_entities_function=provizio_dds.point_cloud2.make_radar_entities,
 ):
     publisher = provizio_dds.Publisher(
         participant, topic_name, provizio_dds.PointCloud2PubSubType
@@ -149,9 +192,7 @@ def publish_radar_entities(
 
     def publish():
         return publisher.publish(
-            provizio_dds.point_cloud2.make_radar_entities(
-                make_header(frame_id), entities
-            )
+            make_entities_function(make_header(frame_id), entities)
         )
 
     return spin(name, publish, stop_event, publish_period)
@@ -270,13 +311,38 @@ def run(arguments=None):
         )
     if args.radar_entities:
         threads.append(
-            publish_radar_entities(
+            publish_entities(
                 participant,
                 stop_event,
                 name="publish_radar_entities",
                 topic_name=radar_entities_topic_name,
                 frame_id=args.frame_id,
                 entities=radar_entities,
+                make_entities_function=provizio_dds.point_cloud2.make_radar_entities,
+            )
+        )
+    if args.camera_entities:
+        threads.append(
+            publish_entities(
+                participant,
+                stop_event,
+                name="publish_camera_entities",
+                topic_name=camera_entities_topic_name,
+                frame_id=args.frame_id,
+                entities=camera_entities,
+                make_entities_function=provizio_dds.point_cloud2.make_camera_entities,
+            )
+        )
+    if args.fusion_entities:
+        threads.append(
+            publish_entities(
+                participant,
+                stop_event,
+                name="publish_fusion_entities",
+                topic_name=fused_entities_topic_name,
+                frame_id=args.frame_id,
+                entities=fused_entities,
+                make_entities_function=provizio_dds.point_cloud2.make_fused_entities,
             )
         )
 

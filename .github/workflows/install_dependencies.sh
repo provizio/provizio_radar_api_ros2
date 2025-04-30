@@ -20,7 +20,7 @@ CC=${CC:-"gcc"}
 STATIC_ANALYSIS=${1:-"OFF"}
 TEST_ENVIRONMENT=${2:-""} # Don't install/configure test dependencies and environment by default
 INSTALL_ROS=${3:-""} # Don't install ROS by default
-TESTS_PROVIZIO_DDS_VERSION="feature/APT-7834-PIP-Custom-CMake-Arguments"
+TESTS_PROVIZIO_DDS_VERSION="1.8.3"
 
 # Update apt cache
 apt update

@@ -18,12 +18,16 @@ import sys
 import test_radar_pc
 import test_radar_pc_sr
 import test_entities_radar
+import test_entities_camera
+import test_entities_fusion
 
 def main(args=None):
     if (
         test_radar_pc.main(args) == 0
         and test_radar_pc_sr.main(args) == 0
         and test_entities_radar.main(args) == 0
+        and test_entities_camera.main(args) == 0
+        and test_entities_fusion.main(args) == 0
     ):
         print("All tests pass!")
         return 0

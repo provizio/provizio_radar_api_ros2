@@ -18,12 +18,12 @@ import sys
 from sensor_msgs.msg import PointCloud2
 import test_framework
 
-dds_domain_id = 19
+dds_domain_id = 20
 timeout_sec = 8.0
-test_name = "test_entities_radar"
-frame_id = "test_entities_radar_frame"
-expected_entities = "[Entity(entity_id=np.uint32(1), entity_class=np.uint8(2), x=np.float32(3.3), y=np.float32(4.4), z=np.float32(5.5), radar_relative_radial_velocity=np.float32(6.6), ground_relative_radial_velocity=np.float32(7.7), orientation_0=np.float32(8.8), orientation_1=np.float32(9.9), orientation_2=np.float32(10.1), orientation_3=np.float32(11.11), size_0=np.float32(12.12), size_1=np.float32(13.13), size_2=np.float32(14.14), entity_confidence=np.uint8(15), entity_class_confidence=np.uint8(16)), Entity(entity_id=np.uint32(101), entity_class=np.uint8(102), x=np.float32(-3.3), y=np.float32(-4.4), z=np.float32(-5.5), radar_relative_radial_velocity=np.float32(-6.6), ground_relative_radial_velocity=np.float32(-7.7), orientation_0=np.float32(-8.8), orientation_1=np.float32(-9.9), orientation_2=np.float32(-10.1), orientation_3=np.float32(-11.11), size_0=np.float32(-12.12), size_1=np.float32(-13.13), size_2=np.float32(-14.14), entity_confidence=np.uint8(115), entity_class_confidence=np.uint8(116))]"
-expected_entities_np = "[Entity(entity_id=1, entity_class=2, x=3.3, y=4.4, z=5.5, radar_relative_radial_velocity=6.6, ground_relative_radial_velocity=7.7, orientation_0=8.8, orientation_1=9.9, orientation_2=10.1, orientation_3=11.11, size_0=12.12, size_1=13.13, size_2=14.14, entity_confidence=15, entity_class_confidence=16), Entity(entity_id=101, entity_class=102, x=-3.3, y=-4.4, z=-5.5, radar_relative_radial_velocity=-6.6, ground_relative_radial_velocity=-7.7, orientation_0=-8.8, orientation_1=-9.9, orientation_2=-10.1, orientation_3=-11.11, size_0=-12.12, size_1=-13.13, size_2=-14.14, entity_confidence=115, entity_class_confidence=116)]"
+test_name = "test_entities_fusion"
+frame_id = "test_entities_fusion_frame"
+expected_entities = "[Entity(entity_id=1, camera_entity_id=2, entity_class=3, x=4.0, y=5.0, z=6.0, radar_relative_radial_velocity=7.0, ground_relative_radial_velocity=8.0, orientation_0=9.0, orientation_1=10.0, orientation_2=11.0, orientation_3=12.0, size_0=13.0, size_1=14.0, size_2=15.0, camera_bbox_0=16.0, camera_bbox_1=17.0, camera_bbox_2=18.0, camera_bbox_3=19.0, entity_confidence=20, entity_class_confidence=21)]"
+expected_entities_np = "[Entity(entity_id=np.uint32(1), camera_entity_id=np.uint32(2), entity_class=np.uint8(3), x=np.float32(4.0), y=np.float32(5.0), z=np.float32(6.0), radar_relative_radial_velocity=np.float32(7.0), ground_relative_radial_velocity=np.float32(8.0), orientation_0=np.float32(9.0), orientation_1=np.float32(10.0), orientation_2=np.float32(11.0), orientation_3=np.float32(12.0), size_0=np.float32(13.0), size_1=np.float32(14.0), size_2=np.float32(15.0), camera_bbox_0=np.float32(16.0), camera_bbox_1=np.float32(17.0), camera_bbox_2=np.float32(18.0), camera_bbox_3=np.float32(19.0), entity_confidence=np.uint8(20), entity_class_confidence=np.uint8(21))]"
 num_messages_needed = 10
 
 
@@ -32,7 +32,7 @@ class TestNode(test_framework.Node):
         super().__init__(test_name)
         self.subscription = self.create_subscription(
             PointCloud2,
-            "/provizio/entities/radar",
+            "/provizio/entities/fusion",
             self.listener_callback,
             qos_profile=self.qos_profile,
         )
@@ -72,7 +72,7 @@ def main(args=None):
     return test_framework.run(
         test_name=test_name,
         synthetic_data_dds_args=[
-            "--radar_entities",
+            "--fusion_entities",
             f"--frame_id={frame_id}",
             f"--dds_domain_id={dds_domain_id}",
         ],
