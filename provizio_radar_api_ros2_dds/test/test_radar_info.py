@@ -14,31 +14,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-from sensor_msgs.msg import PointCloud2
+from provizio_radar_api_ros2.msg import RadarInfo
 import test_framework
+import sys
 
-dds_domain_id = 21
+dds_domain_id = 22
 timeout_sec = 8.0
 max_message_age = 0.15
-test_name = "test_entities_fusion"
-frame_id = "test_entities_fusion_frame"
-expected_entities = "[Entity(entity_id=1, camera_entity_id=2, entity_class=3, x=4.0, y=5.0, z=6.0, radar_relative_radial_velocity=7.0, ground_relative_radial_velocity=8.0, orientation_0=9.0, orientation_1=10.0, orientation_2=11.0, orientation_3=12.0, size_0=13.0, size_1=14.0, size_2=15.0, camera_bbox_0=16.0, camera_bbox_1=17.0, camera_bbox_2=18.0, camera_bbox_3=19.0, entity_confidence=20, entity_class_confidence=21)]"
-expected_entities_np = "[Entity(entity_id=np.uint32(1), camera_entity_id=np.uint32(2), entity_class=np.uint8(3), x=np.float32(4.0), y=np.float32(5.0), z=np.float32(6.0), radar_relative_radial_velocity=np.float32(7.0), ground_relative_radial_velocity=np.float32(8.0), orientation_0=np.float32(9.0), orientation_1=np.float32(10.0), orientation_2=np.float32(11.0), orientation_3=np.float32(12.0), size_0=np.float32(13.0), size_1=np.float32(14.0), size_2=np.float32(15.0), camera_bbox_0=np.float32(16.0), camera_bbox_1=np.float32(17.0), camera_bbox_2=np.float32(18.0), camera_bbox_3=np.float32(19.0), entity_confidence=np.uint8(20), entity_class_confidence=np.uint8(21))]"
+test_name = "test_radar_info"
+frame_id = "test_radar_info_frame"
 num_messages_needed = 10
+expected_serial_number = "0987654321"
+expected_current_range = RadarInfo.LONG_RANGE
+expected_supported_ranges = [
+    RadarInfo.MEDIUM_RANGE,
+    RadarInfo.LONG_RANGE,
+    RadarInfo.ULTRA_LONG_RANGE,
+]
 
 
 class TestNode(test_framework.Node):
     def __init__(self):
         super().__init__(test_name)
         self.subscription = self.create_subscription(
-            PointCloud2,
-            "/provizio/entities/fusion",
+            RadarInfo,
+            "/provizio/radar_info",
             self.listener_callback,
             qos_profile=self.qos_profile,
         )
 
-    def listener_callback(self, msg):
+    def listener_callback(self, msg: RadarInfo):
         if msg.header.frame_id != frame_id:
             # Something else received, we want another frame_id
             print(
@@ -63,10 +68,9 @@ class TestNode(test_framework.Node):
             self.success = False
             self.done = True
 
-        entities = test_framework.read_points_list(msg, tuple_name="Entity")
-        if str(entities) != expected_entities and str(entities) != expected_entities_np:
+        if msg.serial_number != expected_serial_number:
             print(
-                f"{test_name}: {entities} received, {expected_entities} was expected",
+                f"{test_name}: serial_number = {msg.serial_number} received, {expected_serial_number} was expected",
                 file=sys.stderr,
                 flush=True,
             )
@@ -74,6 +78,29 @@ class TestNode(test_framework.Node):
             self.success = False
             self.done = True
             return
+
+        if msg.current_range != expected_current_range:
+            print(
+                f"{test_name}: current_range = {msg.current_range} received, {expected_current_range} was expected",
+                file=sys.stderr,
+                flush=True,
+            )
+
+            self.success = False
+            self.done = True
+            return
+
+        for i in range(len(expected_supported_ranges)):
+            if msg.supported_ranges[i] != expected_supported_ranges[i]:
+                print(
+                    f"{test_name}: supported_range[{i}] = {msg.supported_ranges[i]} received, {expected_supported_ranges[i]} was expected",
+                    file=sys.stderr,
+                    flush=True,
+                )
+
+                self.success = False
+                self.done = True
+                return
 
         self.successful_messages += 1
         if self.successful_messages >= num_messages_needed:
@@ -85,7 +112,7 @@ def main(args=None):
     return test_framework.run(
         test_name=test_name,
         synthetic_data_dds_args=[
-            "--fusion_entities",
+            "--radar_info",
             f"--frame_id={frame_id}",
             f"--dds_domain_id={dds_domain_id}",
         ],
@@ -94,6 +121,7 @@ def main(args=None):
         rclpy_args=args,
         node_args=[["provizio_dds_domain_id", dds_domain_id]],
     )
+    # TODO: Test with SNR filter too
 
 
 if __name__ == "__main__":

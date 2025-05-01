@@ -20,6 +20,7 @@ import test_framework
 
 dds_domain_id = 19
 timeout_sec = 8.0
+max_message_age = 0.15
 test_name = "test_entities_radar"
 frame_id = "test_entities_radar_frame"
 expected_entities = "[Entity(entity_id=np.uint32(1), entity_class=np.uint8(2), x=np.float32(3.3), y=np.float32(4.4), z=np.float32(5.5), radar_relative_radial_velocity=np.float32(6.6), ground_relative_radial_velocity=np.float32(7.7), orientation_0=np.float32(8.8), orientation_1=np.float32(9.9), orientation_2=np.float32(10.1), orientation_3=np.float32(11.11), size_0=np.float32(12.12), size_1=np.float32(13.13), size_2=np.float32(14.14), entity_confidence=np.uint8(15), entity_class_confidence=np.uint8(16)), Entity(entity_id=np.uint32(101), entity_class=np.uint8(102), x=np.float32(-3.3), y=np.float32(-4.4), z=np.float32(-5.5), radar_relative_radial_velocity=np.float32(-6.6), ground_relative_radial_velocity=np.float32(-7.7), orientation_0=np.float32(-8.8), orientation_1=np.float32(-9.9), orientation_2=np.float32(-10.1), orientation_3=np.float32(-11.11), size_0=np.float32(-12.12), size_1=np.float32(-13.13), size_2=np.float32(-14.14), entity_confidence=np.uint8(115), entity_class_confidence=np.uint8(116))]"
@@ -50,10 +51,22 @@ class TestNode(test_framework.Node):
             # Don't overwrite the result
             return
 
-        points = test_framework.read_points_list(msg, tuple_name="Entity")
-        if str(points) != expected_entities and str(points) != expected_entities_np:
+        message_age = test_framework.message_age(msg.header)
+        print(f"{test_name}: Received message of age = {message_age} sec")
+        if message_age > max_message_age:
             print(
-                f"{test_name}: {points} received, {expected_entities} was expected",
+                f"{test_name}: Message delivery took too long: {message_age} sec",
+                file=sys.stderr,
+                flush=True,
+            )
+
+            self.success = False
+            self.done = True
+
+        entities = test_framework.read_points_list(msg, tuple_name="Entity")
+        if str(entities) != expected_entities and str(entities) != expected_entities_np:
+            print(
+                f"{test_name}: {entities} received, {expected_entities} was expected",
                 file=sys.stderr,
                 flush=True,
             )

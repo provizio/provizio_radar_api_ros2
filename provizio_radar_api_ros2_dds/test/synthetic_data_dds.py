@@ -113,7 +113,14 @@ fused_entities = [
         21
     ]
 ]
-
+radar_info_topic_name = "rt/provizio_radar_info"
+radar_info_serial_number = "0987654321"
+radar_info_current_range = provizio_dds.long_range
+radar_info_supported_ranges = [
+    provizio_dds.medium_range,
+    provizio_dds.long_range,
+    provizio_dds.ultra_long_range,
+]
 
 def spin(name, iteration_function, stop_event, period, *args, **kwargs):
     class bg_thread(threading.Thread):
@@ -194,6 +201,32 @@ def publish_entities(
         return publisher.publish(
             make_entities_function(make_header(frame_id), entities)
         )
+
+    return spin(name, publish, stop_event, publish_period)
+
+
+def publish_radar_info(
+    participant,
+    stop_event,
+    name="publish_radar_info",
+    topic_name=radar_info_topic_name,
+    frame_id=default_frame_id,
+    publish_period=0.1,
+):
+    publisher = provizio_dds.Publisher(
+        participant, topic_name, provizio_dds.radar_infoPubSubType
+    )
+
+    def publish():
+        radar_info = provizio_dds.radar_info()
+        radar_info.header(make_header(frame_id))
+        radar_info.serial_number(radar_info_serial_number)
+        radar_info.current_range(radar_info_current_range)
+        supported_ranges = provizio_dds.provizio_msg_radar_range_vector()
+        for it in radar_info_supported_ranges:
+            supported_ranges.append(it)
+        radar_info.supported_ranges(supported_ranges)
+        return publisher.publish(radar_info)
 
     return spin(name, publish, stop_event, publish_period)
 
@@ -344,6 +377,10 @@ def run(arguments=None):
                 entities=fused_entities,
                 make_entities_function=provizio_dds.point_cloud2.make_fused_entities,
             )
+        )
+    if args.radar_info:
+        threads.append(
+            publish_radar_info(participant, stop_event, frame_id=args.frame_id)
         )
 
     return threads

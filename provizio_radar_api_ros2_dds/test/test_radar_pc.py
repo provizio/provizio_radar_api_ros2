@@ -20,6 +20,7 @@ import test_framework
 
 dds_domain_id = 17
 timeout_sec = 8.0
+max_message_age = 0.15
 test_name = "test_radar_pc"
 frame_id = "test_radar_pc_frame"
 expected_points = "[Point(x=0.1, y=0.2, z=0.3, radar_relative_radial_velocity=0.4, signal_to_noise_ratio=0.5, ground_relative_radial_velocity=0.6), Point(x=1.0, y=2.0, z=3.0, radar_relative_radial_velocity=4.0, signal_to_noise_ratio=5.0, ground_relative_radial_velocity=nan)]"
@@ -49,6 +50,18 @@ class TestNode(test_framework.Node):
         if self.done:
             # Don't overwrite the result
             return
+
+        message_age = test_framework.message_age(msg.header)
+        print(f"{test_name}: Received message of age = {message_age} sec")
+        if message_age > max_message_age:
+            print(
+                f"{test_name}: Message delivery took too long: {message_age} sec",
+                file=sys.stderr,
+                flush=True,
+            )
+
+            self.success = False
+            self.done = True
 
         points = test_framework.read_points_list(msg)
         if str(points) != expected_points and str(points) != expected_points_np:

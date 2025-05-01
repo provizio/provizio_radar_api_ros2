@@ -285,3 +285,10 @@ def read_points_list(
     Point = namedtuple(tuple_name, field_names)
 
     return [Point._make(p) for p in pc2.read_points(cloud, field_names, skip_nans, uvs)]
+
+
+def message_age(header):
+    ns_in_sec = 1000000000
+    header_timestamp = header.stamp.sec * ns_in_sec + header.stamp.nanosec
+    timestamp_now = time.time_ns()
+    return float(timestamp_now - header_timestamp) / ns_in_sec
