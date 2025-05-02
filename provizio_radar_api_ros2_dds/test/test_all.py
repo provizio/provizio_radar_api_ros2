@@ -21,6 +21,7 @@ import test_entities_radar
 import test_entities_camera
 import test_entities_fusion
 import test_radar_info
+import test_radar_odometry
 
 def main(args=None):
     if (
@@ -30,6 +31,7 @@ def main(args=None):
         and test_entities_camera.main(args) == 0
         and test_entities_fusion.main(args) == 0
         and test_radar_info.main(args) == 0
+        and test_radar_odometry.main(args) == 0
     ):
         print("All tests pass!")
         return 0

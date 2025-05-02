@@ -110,7 +110,7 @@ fused_entities = [
         18.0,
         19.0,
         20,
-        21
+        21,
     ]
 ]
 radar_info_topic_name = "rt/provizio_radar_info"
@@ -120,6 +120,88 @@ radar_info_supported_ranges = [
     provizio_dds.medium_range,
     provizio_dds.long_range,
     provizio_dds.ultra_long_range,
+]
+radar_odometry_topic_name = "rt/provizio_radar_odometry"
+odometry_child_frame_id = "odometry_child_frame"
+odometry_position = [1.0, 2.0, 3.0]
+odometry_orientation = [4.0, 5.0, 6.0, 7.0]
+odometry_pose_covariance = [
+    0.0,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    1.0,
+    1.1,
+    1.2,
+    1.3,
+    1.4,
+    1.5,
+    2.0,
+    2.1,
+    2.2,
+    2.3,
+    2.4,
+    2.5,
+    3.0,
+    3.1,
+    3.2,
+    3.3,
+    3.4,
+    3.5,
+    4.0,
+    4.1,
+    4.2,
+    4.3,
+    4.4,
+    4.5,
+    5.0,
+    5.1,
+    5.2,
+    5.3,
+    5.4,
+    5.5,
+]
+odometry_twist_linear = [100.0, 200.0, 300.0]
+odometry_twist_angular = [-100.0, -200.0, -300.0]
+odometry_twist_covariance = [
+    -0.0,
+    -0.1,
+    -0.2,
+    -0.3,
+    -0.4,
+    -0.5,
+    -1.0,
+    -1.1,
+    -1.2,
+    -1.3,
+    -1.4,
+    -1.5,
+    -2.0,
+    -2.1,
+    -2.2,
+    -2.3,
+    -2.4,
+    -2.5,
+    -3.0,
+    -3.1,
+    -3.2,
+    -3.3,
+    -3.4,
+    -3.5,
+    -4.0,
+    -4.1,
+    -4.2,
+    -4.3,
+    -4.4,
+    -4.5,
+    -5.0,
+    -5.1,
+    -5.2,
+    -5.3,
+    -5.4,
+    -5.5,
 ]
 
 def spin(name, iteration_function, stop_event, period, *args, **kwargs):
@@ -227,6 +309,58 @@ def publish_radar_info(
             supported_ranges.append(it)
         radar_info.supported_ranges(supported_ranges)
         return publisher.publish(radar_info)
+
+    return spin(name, publish, stop_event, publish_period)
+
+
+def publish_radar_odometry(
+    participant,
+    stop_event,
+    name="publish_radar_odometry",
+    topic_name=radar_odometry_topic_name,
+    frame_id=default_frame_id,
+    publish_period=0.1,
+):
+    publisher = provizio_dds.Publisher(
+        participant, topic_name, provizio_dds.OdometryPubSubType
+    )
+
+    def publish():
+        odometry = provizio_dds.Odometry()
+        odometry.header(make_header(frame_id))
+        odometry.child_frame_id(odometry_child_frame_id)
+        position = provizio_dds.Point()
+        position.x(odometry_position[0])
+        position.y(odometry_position[1])
+        position.z(odometry_position[2])
+        orientation = provizio_dds.Quaternion()
+        orientation.x(odometry_orientation[0])
+        orientation.y(odometry_orientation[1])
+        orientation.z(odometry_orientation[2])
+        orientation.w(odometry_orientation[3])
+        pose = provizio_dds.Pose()
+        pose.position(position)
+        pose.orientation(orientation)
+        pose_with_covariance = provizio_dds.PoseWithCovariance()
+        pose_with_covariance.pose(pose)
+        pose_with_covariance.covariance(odometry_pose_covariance)
+        odometry.pose(pose_with_covariance)
+        linear = provizio_dds.Vector3()
+        linear.x(odometry_twist_linear[0])
+        linear.y(odometry_twist_linear[1])
+        linear.z(odometry_twist_linear[2])
+        angular = provizio_dds.Vector3()
+        angular.x(odometry_twist_angular[0])
+        angular.y(odometry_twist_angular[1])
+        angular.z(odometry_twist_angular[2])
+        twist = provizio_dds.Twist()
+        twist.linear(linear)
+        twist.angular(angular)
+        twist_with_covariance = provizio_dds.TwistWithCovariance()
+        twist_with_covariance.twist(twist)
+        twist_with_covariance.covariance(odometry_twist_covariance)
+        odometry.twist(twist_with_covariance)
+        return publisher.publish(odometry)
 
     return spin(name, publish, stop_event, publish_period)
 
@@ -381,6 +515,10 @@ def run(arguments=None):
     if args.radar_info:
         threads.append(
             publish_radar_info(participant, stop_event, frame_id=args.frame_id)
+        )
+    if args.radar_odometry:
+        threads.append(
+            publish_radar_odometry(participant, stop_event, frame_id=args.frame_id)
         )
 
     return threads
