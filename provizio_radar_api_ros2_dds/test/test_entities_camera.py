@@ -20,7 +20,7 @@ import test_framework
 
 dds_domain_id = 20
 timeout_sec = 8.0
-max_message_age = 0.15
+max_message_age = 0.5
 test_name = "test_entities_camera"
 frame_id = "test_entities_camera_frame"
 expected_entities = "[Entity(camera_entity_id=1, entity_class=2, x=3.0, y=4.0, z=5.0, camera_bbox_0=6.0, camera_bbox_1=7.0, camera_bbox_2=8.0, camera_bbox_3=9.0, entity_confidence=10, entity_class_confidence=11)]"

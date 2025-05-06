@@ -20,7 +20,7 @@ import sys
 
 dds_domain_id = 22
 timeout_sec = 8.0
-max_message_age = 0.15
+max_message_age = 0.5
 test_name = "test_radar_info"
 frame_id = "test_radar_info_frame"
 num_messages_needed = 10

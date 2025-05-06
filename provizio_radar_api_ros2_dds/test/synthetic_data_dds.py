@@ -203,6 +203,14 @@ odometry_twist_covariance = [
     -5.4,
     -5.5,
 ]
+camera_frames_topic_name = "rt/provizio_camera"
+camera_frames_encoding = "test_encoding"
+camera_frames_width = 2000
+camera_frames_height = 1000
+camera_frames_step = 9
+camera_frames_is_bigendian = False
+camera_frames_data = [1, 2, 4, 8, 16, 32, 64, 128]
+
 
 def spin(name, iteration_function, stop_event, period, *args, **kwargs):
     class bg_thread(threading.Thread):
@@ -365,6 +373,32 @@ def publish_radar_odometry(
     return spin(name, publish, stop_event, publish_period)
 
 
+def publish_camera_frames(
+    participant,
+    stop_event,
+    name="publish_camera_frames",
+    topic_name=camera_frames_topic_name,
+    frame_id=default_frame_id,
+    publish_period=0.1,
+):
+    publisher = provizio_dds.Publisher(
+        participant, topic_name, provizio_dds.ImagePubSubType
+    )
+
+    def publish():
+        image = provizio_dds.Image()
+        image.header(make_header(frame_id))
+        image.encoding(camera_frames_encoding)
+        image.width(camera_frames_width)
+        image.height(camera_frames_height)
+        image.step(camera_frames_step)
+        image.is_bigendian(camera_frames_is_bigendian)
+        image.data(camera_frames_data)
+        return publisher.publish(image)
+
+    return spin(name, publish, stop_event, publish_period)
+
+
 stop_event = None
 
 
@@ -519,6 +553,10 @@ def run(arguments=None):
     if args.radar_odometry:
         threads.append(
             publish_radar_odometry(participant, stop_event, frame_id=args.frame_id)
+        )
+    if args.camera_frames:
+        threads.append(
+            publish_camera_frames(participant, stop_event, frame_id=args.frame_id)
         )
 
     return threads

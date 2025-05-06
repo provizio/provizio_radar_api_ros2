@@ -14,31 +14,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import Image
 import test_framework
+import sys
 
-dds_domain_id = 17
+dds_domain_id = 24
 timeout_sec = 8.0
 max_message_age = 0.5
-test_name = "test_radar_pc"
-frame_id = "test_radar_pc_frame"
-expected_points = "[Point(x=0.1, y=0.2, z=0.3, radar_relative_radial_velocity=0.4, signal_to_noise_ratio=0.5, ground_relative_radial_velocity=0.6), Point(x=1.0, y=2.0, z=3.0, radar_relative_radial_velocity=4.0, signal_to_noise_ratio=5.0, ground_relative_radial_velocity=nan)]"
-expected_points_np = "[Point(x=np.float32(0.1), y=np.float32(0.2), z=np.float32(0.3), radar_relative_radial_velocity=np.float32(0.4), signal_to_noise_ratio=np.float32(0.5), ground_relative_radial_velocity=np.float32(0.6)), Point(x=np.float32(1.0), y=np.float32(2.0), z=np.float32(3.0), radar_relative_radial_velocity=np.float32(4.0), signal_to_noise_ratio=np.float32(5.0), ground_relative_radial_velocity=np.float32(nan))]"
+test_name = "test_camera"
+frame_id = "test_camera_frame"
 num_messages_needed = 10
+expected_encoding = "test_encoding"
+expected_width = 2000
+expected_height = 1000
+expected_step = 9
+expected_is_bigendian = False
+expected_data = bytearray([1, 2, 4, 8, 16, 32, 64, 128])
 
 
 class TestNode(test_framework.Node):
     def __init__(self):
         super().__init__(test_name)
         self.subscription = self.create_subscription(
-            PointCloud2,
-            "/provizio/radar_point_cloud",
+            Image,
+            "/provizio/camera_raw",
             self.listener_callback,
             qos_profile=self.qos_profile,
         )
 
-    def listener_callback(self, msg):
+    def listener_callback(self, msg: Image):
         if msg.header.frame_id != frame_id:
             # Something else received, we want another frame_id
             print(
@@ -63,17 +67,65 @@ class TestNode(test_framework.Node):
             self.success = False
             self.done = True
 
-        points = test_framework.read_points_list(msg)
-        if str(points) != expected_points and str(points) != expected_points_np:
+        if msg.encoding != expected_encoding:
             print(
-                f"{test_name}: {points} received, {expected_points} was expected",
+                f"{test_name}: encoding = {msg.encoding} received while {expected_encoding} was expected",
                 file=sys.stderr,
                 flush=True,
             )
 
             self.success = False
             self.done = True
-            return
+
+        if msg.width != expected_width:
+            print(
+                f"{test_name}: width = {msg.width} received while {expected_width} was expected",
+                file=sys.stderr,
+                flush=True,
+            )
+
+            self.success = False
+            self.done = True
+
+        if msg.height != expected_height:
+            print(
+                f"{test_name}: height = {msg.height} received while {expected_height} was expected",
+                file=sys.stderr,
+                flush=True,
+            )
+
+            self.success = False
+            self.done = True
+
+        if msg.step != expected_step:
+            print(
+                f"{test_name}: step = {msg.step} received while {expected_step} was expected",
+                file=sys.stderr,
+                flush=True,
+            )
+
+            self.success = False
+            self.done = True
+
+        if msg.is_bigendian != expected_is_bigendian:
+            print(
+                f"{test_name}: is_bigendian = {msg.is_bigendian} received while {expected_is_bigendian} was expected",
+                file=sys.stderr,
+                flush=True,
+            )
+
+            self.success = False
+            self.done = True
+
+        if msg.data != expected_data:
+            print(
+                f"{test_name}: data = {msg.data} received while {expected_data} was expected",
+                file=sys.stderr,
+                flush=True,
+            )
+
+            self.success = False
+            self.done = True
 
         self.successful_messages += 1
         if self.successful_messages >= num_messages_needed:
@@ -85,7 +137,7 @@ def main(args=None):
     return test_framework.run(
         test_name=test_name,
         synthetic_data_dds_args=[
-            "--radar_pc",
+            "--camera_frames",
             f"--frame_id={frame_id}",
             f"--dds_domain_id={dds_domain_id}",
         ],
@@ -94,7 +146,6 @@ def main(args=None):
         rclpy_args=args,
         node_args=[["provizio_dds_domain_id", dds_domain_id]],
     )
-    # TODO: Test with SNR filter too
 
 
 if __name__ == "__main__":

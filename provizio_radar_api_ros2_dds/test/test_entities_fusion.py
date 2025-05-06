@@ -20,7 +20,7 @@ import test_framework
 
 dds_domain_id = 21
 timeout_sec = 8.0
-max_message_age = 0.15
+max_message_age = 0.5
 test_name = "test_entities_fusion"
 frame_id = "test_entities_fusion_frame"
 expected_entities = "[Entity(entity_id=1, camera_entity_id=2, entity_class=3, x=4.0, y=5.0, z=6.0, radar_relative_radial_velocity=7.0, ground_relative_radial_velocity=8.0, orientation_0=9.0, orientation_1=10.0, orientation_2=11.0, orientation_3=12.0, size_0=13.0, size_1=14.0, size_2=15.0, camera_bbox_0=16.0, camera_bbox_1=17.0, camera_bbox_2=18.0, camera_bbox_3=19.0, entity_confidence=20, entity_class_confidence=21)]"

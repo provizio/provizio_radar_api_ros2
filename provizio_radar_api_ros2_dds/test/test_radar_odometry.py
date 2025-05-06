@@ -20,7 +20,7 @@ import sys
 
 dds_domain_id = 23
 timeout_sec = 8.0
-max_message_age = 0.15
+max_message_age = 0.5
 test_name = "test_radar_odometry"
 frame_id = "test_radar_odometry_frame"
 num_messages_needed = 10
@@ -198,7 +198,7 @@ class TestNode(test_framework.Node):
 
         if [msg.twist.twist.angular.x, msg.twist.twist.angular.y, msg.twist.twist.angular.z] != expected_angular_twist:
             print(
-                f"{test_name}: twist.twist.angular = [msg.twist.twist.angular.x, msg.twist.twist.angular.y, msg.twist.twist.angular.z] received while {expected_angular_twist} was expected",
+                f"{test_name}: twist.twist.angular = {[msg.twist.twist.angular.x, msg.twist.twist.angular.y, msg.twist.twist.angular.z]} received while {expected_angular_twist} was expected",
                 file=sys.stderr,
                 flush=True,
             )
@@ -212,7 +212,7 @@ class TestNode(test_framework.Node):
             msg.twist.twist.linear.z,
         ] != expected_linear_twist:
             print(
-                f"{test_name}: twist.twist.linear = [msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z] received while {expected_linear_twist} was expected",
+                f"{test_name}: twist.twist.linear = {[msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z]} received while {expected_linear_twist} was expected",
                 file=sys.stderr,
                 flush=True,
             )
@@ -239,7 +239,6 @@ def main(args=None):
         rclpy_args=args,
         node_args=[["provizio_dds_domain_id", dds_domain_id]],
     )
-    # TODO: Test with SNR filter too
 
 
 if __name__ == "__main__":

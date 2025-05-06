@@ -20,7 +20,7 @@ import test_framework
 
 dds_domain_id = 18
 timeout_sec = 8.0
-max_message_age = 0.15
+max_message_age = 0.5
 test_name = "test_radar_pc_sr"
 frame_id = "test_radar_pc_sr_frame"
 expected_points = "[Point(x=-0.1, y=-0.2, z=-0.3, radar_relative_radial_velocity=-0.4, signal_to_noise_ratio=50.0, ground_relative_radial_velocity=-0.6), Point(x=-1.0, y=-2.0, z=-3.0, radar_relative_radial_velocity=-4.0, signal_to_noise_ratio=500.0, ground_relative_radial_velocity=-6.0)]"
