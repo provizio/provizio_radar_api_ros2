@@ -210,7 +210,10 @@ camera_frames_height = 1000
 camera_frames_step = 9
 camera_frames_is_bigendian = False
 camera_frames_data = [1, 2, 4, 8, 16, 32, 64, 128]
-
+radar_freespace_topic_name = "rt/provizio_freespace_poly"
+camera_freespace_topic_name = "rt/provizio_freespace_camera_poly"
+freespace_polygon_id = 120
+freespace_points = [[1.0, 2.0, 3.0], [-1.0, -2.0, -3.0], [10.0, 200.0, 3000.0]]
 
 def spin(name, iteration_function, stop_event, period, *args, **kwargs):
     class bg_thread(threading.Thread):
@@ -399,6 +402,40 @@ def publish_camera_frames(
     return spin(name, publish, stop_event, publish_period)
 
 
+def publish_freespace(
+    participant,
+    stop_event,
+    name="publish_freespace",
+    topic_name=radar_freespace_topic_name,
+    frame_id=default_frame_id,
+    publish_period=0.1,
+):
+    publisher = provizio_dds.Publisher(
+        participant, topic_name, provizio_dds.PolygonInstanceStampedPubSubType
+    )
+
+    def make_point(it):
+        point = provizio_dds.Point32()
+        point.x(it[0])
+        point.y(it[1])
+        point.z(it[2])
+        return point
+
+    def publish():
+        freespace = provizio_dds.PolygonInstanceStamped()
+        freespace.header(make_header(frame_id))
+        polygon_instance = provizio_dds.PolygonInstance()
+        polygon_instance.id(freespace_polygon_id)
+        polygon = provizio_dds.Polygon()
+        polygon.points([make_point(it) for it in freespace_points])
+        polygon_instance.polygon(polygon)
+        freespace.polygon(polygon_instance)
+
+        return publisher.publish(freespace)
+
+    return spin(name, publish, stop_event, publish_period)
+
+
 stop_event = None
 
 
@@ -557,6 +594,26 @@ def run(arguments=None):
     if args.camera_frames:
         threads.append(
             publish_camera_frames(participant, stop_event, frame_id=args.frame_id)
+        )
+    if args.radar_freespace:
+        threads.append(
+            publish_freespace(
+                participant,
+                stop_event,
+                name="publish_radar_freespace",
+                frame_id=args.frame_id,
+                topic_name=radar_freespace_topic_name,
+            )
+        )
+    if args.camera_freespace:
+        threads.append(
+            publish_freespace(
+                participant,
+                stop_event,
+                name="publish_camera_freespace",
+                frame_id=args.frame_id,
+                topic_name=camera_freespace_topic_name,
+            )
         )
 
     return threads
