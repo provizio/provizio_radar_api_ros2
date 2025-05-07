@@ -214,6 +214,14 @@ radar_freespace_topic_name = "rt/provizio_freespace_poly"
 camera_freespace_topic_name = "rt/provizio_freespace_camera_poly"
 freespace_polygon_id = 120
 freespace_points = [[1.0, 2.0, 3.0], [-1.0, -2.0, -3.0], [10.0, 200.0, 3000.0]]
+set_radar_range_topic_name = "rt/provizio_set_radar_range"
+set_radar_range_start_range = provizio_dds.medium_range
+set_range_ok_fast = provizio_dds.short_range
+set_range_ok_slow = provizio_dds.long_range
+set_range_fail = provizio_dds.ultra_long_range
+set_range_drop = provizio_dds.hyper_long_range
+set_range_slow_time = 15.0
+
 
 def spin(name, iteration_function, stop_event, period, *args, **kwargs):
     class bg_thread(threading.Thread):
@@ -436,6 +444,91 @@ def publish_freespace(
     return spin(name, publish, stop_event, publish_period)
 
 
+def serve_set_radar_range(
+    participant,
+    stop_event,
+    name="serve_set_radar_range",
+    topic_name=set_radar_range_topic_name,
+    info_topic_name=radar_info_topic_name,
+    frame_id=default_frame_id,
+    publish_period=0.1,
+):
+    do_publish = True
+    current_range = set_radar_range_start_range
+    radar_info_publisher = provizio_dds.Publisher(
+        participant, info_topic_name, provizio_dds.radar_infoPubSubType
+    )
+
+    def publish_radar_info():
+        if not do_publish:
+            return True
+
+        radar_info = provizio_dds.radar_info()
+        radar_info.header(make_header(frame_id))
+        radar_info.current_range(current_range)
+        return radar_info_publisher.publish(radar_info)
+
+    def serve(request: provizio_dds.set_radar_range):
+        nonlocal current_range
+        nonlocal do_publish
+        if request.header().frame_id() == frame_id:
+            match request.target_range():
+                case v if v == set_range_ok_fast or v == set_radar_range_start_range:
+                    print(
+                        f"synthetic_data_dds: Setting the radar range (fast) = {request.target_range()}"
+                    )
+                    current_range = request.target_range()
+                    do_publish = True
+
+                case v if v == set_range_ok_slow:
+                    print(
+                        f"synthetic_data_dds: Setting the radar range (slow) = {request.target_range()}..."
+                    )
+                    time.sleep(set_range_slow_time)
+                    current_range = request.target_range()
+                    do_publish = True
+                    print(
+                        f"synthetic_data_dds: Setting the radar range (slow) done = {request.target_range()}"
+                    )
+
+                case v if v == set_range_fail:
+                    # Don't change the range
+                    print(
+                        f"synthetic_data_dds: Don't change the range but keep publishing radar_info. current_range = {current_range}"
+                    )
+                    do_publish = True
+
+                case v if v == set_range_drop:
+                    # Don't change the range and in addition to that stop publishing
+                    print(
+                        f"synthetic_data_dds: Don't change the range and stop publishing radar_info. current_range = {current_range}"
+                    )
+                    do_publish = False
+
+    subscriber = provizio_dds.Subscriber(
+        participant,
+        topic_name,
+        provizio_dds.set_radar_rangePubSubType,
+        provizio_dds.set_radar_range,
+        serve,
+    )
+
+    info_thread = spin(name, publish_radar_info, stop_event, publish_period)
+
+    class thread_wrapper:
+        def __init__(self, subscriber, info_thread):
+            self.subscriber = subscriber
+            self.info_thread = info_thread
+            pass
+
+        def join(self):
+            self.info_thread.join()
+            del self.subscriber
+            print(f"{name} subscriber has finished")
+
+    return thread_wrapper(subscriber, info_thread)
+
+
 stop_event = None
 
 
@@ -472,9 +565,9 @@ def run(arguments=None):
     )
     parser.add_argument(
         "--set_radar_range",
-        type=str,
-        default=None,
-        help="Serve Radar Range Mode: None/OK/Fail",
+        action="store_true",
+        default=False,
+        help="Serve Radar Range Mode",
     )
     parser.add_argument(
         "--radar_odometry",
@@ -615,6 +708,10 @@ def run(arguments=None):
                 topic_name=camera_freespace_topic_name,
             )
         )
+    if args.set_radar_range:
+        threads.append(
+            serve_set_radar_range(participant, stop_event, frame_id=args.frame_id)
+        )
 
     return threads
 
@@ -634,7 +731,7 @@ def running():
 def main():
     for thread in run():
         thread.join()
-    print("All threads finished")
+    print("synthetic_data_dds: All threads finished")
 
 
 if __name__ == "__main__":

@@ -125,17 +125,21 @@ def _do_run(
         try:
             while True:
                 if test_node.done:
-                    print(f"Test node finished. Success = {test_node.success}")
+                    print(
+                        f"{test_name}: Test node finished. Success = {test_node.success}"
+                    )
                     break
                 if time.time() > end_time:
-                    print("Timeout")
+                    print(f"{test_name}: Timeout")
                     break
                 if synthetic_data_process.poll() is not None:
-                    print(f"Synthetic data process finished with code {synthetic_data_process.poll()}")
+                    print(
+                        f"{test_name}: Synthetic data process finished with code {synthetic_data_process.poll()}"
+                    )
                     break
                 if driver_process.poll() is not None:
                     print(
-                        f"{node_name} process finished with code {driver_process.poll()}"
+                        f"{test_name}: {node_name} process finished with code {driver_process.poll()}"
                     )
                     break
 

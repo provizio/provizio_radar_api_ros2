@@ -16,7 +16,6 @@
 
 from nav_msgs.msg import Odometry
 import test_framework
-import sys
 
 dds_domain_id = 23
 timeout_sec = 8.0
@@ -106,6 +105,7 @@ expected_twist_covariance = [
 expected_angular_twist = [-100.0, -200.0, -300.0]
 expected_linear_twist = [100.0, 200.0, 300.0]
 
+
 class TestNode(test_framework.Node):
     def __init__(self):
         super().__init__(test_name)
@@ -134,7 +134,6 @@ class TestNode(test_framework.Node):
         if message_age > max_message_age:
             print(
                 f"{test_name}: Message delivery took too long: {message_age} sec",
-                file=sys.stderr,
                 flush=True,
             )
 
@@ -144,7 +143,6 @@ class TestNode(test_framework.Node):
         if msg.child_frame_id != expected_child_frame_id:
             print(
                 f"{test_name}: child_frame_id = {msg.child_frame_id} received while {expected_child_frame_id} was expected",
-                file=sys.stderr,
                 flush=True,
             )
 
@@ -154,17 +152,19 @@ class TestNode(test_framework.Node):
         if (msg.pose.covariance != expected_pose_covariance).any():
             print(
                 f"{test_name}: pose.covariance = {msg.pose.covariance} received while {expected_pose_covariance} was expected",
-                file=sys.stderr,
                 flush=True,
             )
 
             self.success = False
             self.done = True
 
-        if [msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z] != expected_position:
+        if [
+            msg.pose.pose.position.x,
+            msg.pose.pose.position.y,
+            msg.pose.pose.position.z,
+        ] != expected_position:
             print(
                 f"{test_name}: pose.pose.position = {[msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z]} received while {expected_position} was expected",
-                file=sys.stderr,
                 flush=True,
             )
 
@@ -179,7 +179,6 @@ class TestNode(test_framework.Node):
         ] != expected_orientation:
             print(
                 f"{test_name}: pose.pose.orientation = {[msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w]} received while {expected_orientation} was expected",
-                file=sys.stderr,
                 flush=True,
             )
 
@@ -189,17 +188,19 @@ class TestNode(test_framework.Node):
         if (msg.twist.covariance != expected_twist_covariance).any():
             print(
                 f"{test_name}: twist.covariance = {msg.pose.covariance} received while {expected_twist_covariance} was expected",
-                file=sys.stderr,
                 flush=True,
             )
 
             self.success = False
             self.done = True
 
-        if [msg.twist.twist.angular.x, msg.twist.twist.angular.y, msg.twist.twist.angular.z] != expected_angular_twist:
+        if [
+            msg.twist.twist.angular.x,
+            msg.twist.twist.angular.y,
+            msg.twist.twist.angular.z,
+        ] != expected_angular_twist:
             print(
                 f"{test_name}: twist.twist.angular = {[msg.twist.twist.angular.x, msg.twist.twist.angular.y, msg.twist.twist.angular.z]} received while {expected_angular_twist} was expected",
-                file=sys.stderr,
                 flush=True,
             )
 
@@ -213,7 +214,6 @@ class TestNode(test_framework.Node):
         ] != expected_linear_twist:
             print(
                 f"{test_name}: twist.twist.linear = {[msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z]} received while {expected_linear_twist} was expected",
-                file=sys.stderr,
                 flush=True,
             )
 

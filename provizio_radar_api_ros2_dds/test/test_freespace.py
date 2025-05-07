@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 import test_framework
 from enum import Enum
 from geometry_msgs.msg import PolygonStamped
@@ -22,6 +21,7 @@ from geometry_msgs.msg import PolygonStamped
 has_polygon_instance_stamped = False
 try:
     from geometry_msgs.msg import PolygonInstanceStamped
+
     has_polygon_instance_stamped = True
 except ImportError:
     # No PolygonInstanceStamped
@@ -37,10 +37,14 @@ num_messages_needed = 10
 expected_polygon_id = 120
 expected_points = [[1.0, 2.0, 3.0], [-1.0, -2.0, -3.0], [10.0, 200.0, 3000.0]]
 
+
 class FreespaceSource(Enum):
     RADAR = 0
     CAMERA = 1
+
+
 _source = FreespaceSource.RADAR
+
 
 class TestNode(test_framework.Node):
 
@@ -70,8 +74,10 @@ class TestNode(test_framework.Node):
                 qos_profile=self.qos_profile,
             )
 
-    def listener_callback(self, msg: PolygonStamped):
-        instance_message = has_polygon_instance_stamped and msg is not PolygonStamped
+    def listener_callback(self, msg):
+        instance_message = has_polygon_instance_stamped and not isinstance(
+            msg, PolygonStamped
+        )
 
         if msg.header.frame_id != frame_id:
             # Something else received, we want another frame_id
@@ -92,7 +98,6 @@ class TestNode(test_framework.Node):
         if message_age > max_message_age:
             print(
                 f"{test_name}: Message delivery took too long: {message_age} sec",
-                file=sys.stderr,
                 flush=True,
             )
 
@@ -102,7 +107,6 @@ class TestNode(test_framework.Node):
         if instance_message and msg.polygon.id != expected_polygon_id:
             print(
                 f"{test_name}: polygon id = {msg.polygon.id} received, {expected_polygon_id} was expected",
-                file=sys.stderr,
                 flush=True,
             )
 
@@ -119,7 +123,6 @@ class TestNode(test_framework.Node):
         if polygon_points != expected_points:
             print(
                 f"{test_name}: polygon points = {polygon_points} received, {expected_points} was expected",
-                file=sys.stderr,
                 flush=True,
             )
 
@@ -140,10 +143,12 @@ class TestNode(test_framework.Node):
             self.done = True
 
 
-def main(source:FreespaceSource, args=None):
-    _source = source
+def main(source: FreespaceSource, args=None):
+    global _source
     global test_name
-    test_name += f"_{source.name}"
+
+    _source = source
+    test_name = f"test_freespace_{source.name}"
     return test_framework.run(
         test_name=test_name,
         synthetic_data_dds_args=[
@@ -164,3 +169,4 @@ def main(source:FreespaceSource, args=None):
 
 if __name__ == "__main__":
     main(FreespaceSource.RADAR)
+    main(FreespaceSource.CAMERA)

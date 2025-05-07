@@ -286,8 +286,8 @@ namespace provizio
 
         if (node.get_parameter(serve_set_radar_range_param).as_bool())
         {
-            dds_set_radar_range_publisher = make_dds_publisher_set_radar_range(
-                dds_domain_participant, node.get_parameter(set_radar_range_ros2_service_name_param).as_string());
+            dds_set_radar_range_publisher =
+                make_dds_publisher_set_radar_range(dds_domain_participant, set_radar_range_dds_topic_name);
             stop_ros2_set_radar_range_service = false;
             ros2_set_radar_range_service = node.template create_service<provizio_radar_api_ros2::srv::SetRadarRange>(
                 node.get_parameter(set_radar_range_ros2_service_name_param).as_string(),

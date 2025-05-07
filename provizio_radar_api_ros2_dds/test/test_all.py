@@ -16,6 +16,7 @@
 
 import sys
 import test_radar_pc
+import test_radar_pc_snr_filtered
 import test_radar_pc_sr
 import test_entities_radar
 import test_entities_camera
@@ -24,10 +25,15 @@ import test_radar_info
 import test_radar_odometry
 import test_camera
 import test_freespace
+import test_set_radar_range
+
 
 def main(args=None):
     if (
-        test_radar_pc.main(args) == 0
+        True
+        and test_radar_pc.main(args) == 0
+        and test_radar_pc_snr_filtered.main(False, args) == 0
+        and test_radar_pc_snr_filtered.main(True, args) == 0
         and test_radar_pc_sr.main(args) == 0
         and test_entities_radar.main(args) == 0
         and test_entities_camera.main(args) == 0
@@ -37,11 +43,13 @@ def main(args=None):
         and test_camera.main(args) == 0
         and test_freespace.main(test_freespace.FreespaceSource.RADAR, args) == 0
         and test_freespace.main(test_freespace.FreespaceSource.CAMERA, args) == 0
+        and test_set_radar_range.main(args) == 0
     ):
         print("All tests pass!")
         return 0
 
     return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

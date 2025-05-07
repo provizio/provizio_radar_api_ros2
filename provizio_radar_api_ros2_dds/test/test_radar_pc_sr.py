@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 from sensor_msgs.msg import PointCloud2
 import test_framework
 
@@ -56,7 +55,6 @@ class TestNode(test_framework.Node):
         if message_age > max_message_age:
             print(
                 f"{test_name}: Message delivery took too long: {message_age} sec",
-                file=sys.stderr,
                 flush=True,
             )
 
@@ -67,7 +65,6 @@ class TestNode(test_framework.Node):
         if str(points) != expected_points and str(points) != expected_points_np:
             print(
                 f"{test_name}: {points} received, {expected_points} was expected",
-                file=sys.stderr,
                 flush=True,
             )
 
@@ -94,7 +91,6 @@ def main(args=None):
         rclpy_args=args,
         node_args=[["provizio_dds_domain_id", dds_domain_id]],
     )
-    # TODO: Test with SNR filter too
 
 
 if __name__ == "__main__":

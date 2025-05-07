@@ -16,7 +16,6 @@
 
 from sensor_msgs.msg import Image
 import test_framework
-import sys
 
 dds_domain_id = 24
 timeout_sec = 8.0
@@ -60,7 +59,6 @@ class TestNode(test_framework.Node):
         if message_age > max_message_age:
             print(
                 f"{test_name}: Message delivery took too long: {message_age} sec",
-                file=sys.stderr,
                 flush=True,
             )
 
@@ -70,7 +68,6 @@ class TestNode(test_framework.Node):
         if msg.encoding != expected_encoding:
             print(
                 f"{test_name}: encoding = {msg.encoding} received while {expected_encoding} was expected",
-                file=sys.stderr,
                 flush=True,
             )
 
@@ -80,7 +77,6 @@ class TestNode(test_framework.Node):
         if msg.width != expected_width:
             print(
                 f"{test_name}: width = {msg.width} received while {expected_width} was expected",
-                file=sys.stderr,
                 flush=True,
             )
 
@@ -90,7 +86,6 @@ class TestNode(test_framework.Node):
         if msg.height != expected_height:
             print(
                 f"{test_name}: height = {msg.height} received while {expected_height} was expected",
-                file=sys.stderr,
                 flush=True,
             )
 
@@ -100,7 +95,6 @@ class TestNode(test_framework.Node):
         if msg.step != expected_step:
             print(
                 f"{test_name}: step = {msg.step} received while {expected_step} was expected",
-                file=sys.stderr,
                 flush=True,
             )
 
@@ -110,7 +104,6 @@ class TestNode(test_framework.Node):
         if msg.is_bigendian != expected_is_bigendian:
             print(
                 f"{test_name}: is_bigendian = {msg.is_bigendian} received while {expected_is_bigendian} was expected",
-                file=sys.stderr,
                 flush=True,
             )
 
@@ -120,7 +113,6 @@ class TestNode(test_framework.Node):
         if msg.data != expected_data:
             print(
                 f"{test_name}: data = {msg.data} received while {expected_data} was expected",
-                file=sys.stderr,
                 flush=True,
             )
 
