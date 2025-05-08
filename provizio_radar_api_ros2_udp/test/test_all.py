@@ -16,7 +16,7 @@
 
 import sys
 import test_radar_pc
-#import test_radar_pc_snr_filtered
+import test_radar_pc_snr_filtered
 #import test_set_radar_range
 
 
@@ -24,8 +24,8 @@ def main(args=None):
     if (
         True
         and test_radar_pc.main(args) == 0
-#        and test_radar_pc_snr_filtered.main(False, args) == 0
-#        and test_radar_pc_snr_filtered.main(True, args) == 0
+        and test_radar_pc_snr_filtered.main(False, args) == 0
+        and test_radar_pc_snr_filtered.main(True, args) == 0
 #        and test_set_radar_range.main(args) == 0
     ):
         print("All tests pass!")
