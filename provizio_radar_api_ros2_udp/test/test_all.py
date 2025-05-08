@@ -15,11 +15,24 @@
 # limitations under the License.
 
 import sys
+import test_radar_pc
+#import test_radar_pc_snr_filtered
+#import test_set_radar_range
+
 
 def main(args=None):
-    # TODO: Actual tests
-    print("TODO: UDP implementation tests")
-    return 0
+    if (
+        True
+        and test_radar_pc.main(args) == 0
+#        and test_radar_pc_snr_filtered.main(False, args) == 0
+#        and test_radar_pc_snr_filtered.main(True, args) == 0
+#        and test_set_radar_range.main(args) == 0
+    ):
+        print("All tests pass!")
+        return 0
+
+    return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())
