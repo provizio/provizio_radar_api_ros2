@@ -19,6 +19,7 @@ jobs:
       matrix:
         runner: [ubuntu-latest, jetson-18.04]
         ros: [humble, iron, jazzy]
+        ros_rmw: [rmw_fastrtps_cpp, rmw_cyclonedds_cpp]
         cc: [gcc, clang]
         api: [dds, udp]
         build_type: [Debug, Release]
@@ -26,7 +27,7 @@ jobs:
       STATIC_ANALYSIS: ON
     steps:
       - uses: actions/checkout@v3
-      - run: .github/workflows/test.sh ${{matrix.ros}} ${{matrix.cc}} ${{matrix.api}} ${{matrix.build_type}} ${STATIC_ANALYSIS}
+      - run: .github/workflows/test.sh ${{matrix.ros}} ${{matrix.cc}} ${{matrix.api}} ${{matrix.build_type}} ${{matrix.ros_rmw}} ${STATIC_ANALYSIS}
       - name: Docker Cleanup
         if: always()
         run: docker rm -f provizio_radar_api_ros2_test_${{matrix.ros}} ; docker rmi -f provizio_radar_api_ros2_test:${{matrix.ros}} ; docker system prune -af

@@ -68,9 +68,11 @@ def _do_run(
     rclpy.init(args=rclpy_args)
 
     package_name = "provizio_radar_api_ros2"
-    node_name = ("provizio_radar_lifecycle_node" if lifecycle_node else "provizio_radar_node")
+    node_name = (
+        "provizio_radar_lifecycle_node" if lifecycle_node else "provizio_radar_node"
+    )
 
-    print(f"Running test {test_name} with {node_name}...")
+    print(f"Running test {test_name} with {node_name} (DDS API)...")
 
     node_cmd = [
         "ros2",
@@ -84,7 +86,9 @@ def _do_run(
             node_cmd.append("-p")
             node_cmd.append(f"{param[0]}:={param[1]}")
 
-    synthetic_data_cmd = ["python3", "synthetic_data_dds.py"] + (synthetic_data_dds_args if synthetic_data_dds_args is not None else [])
+    synthetic_data_cmd = ["python3", "synthetic_data_dds.py"] + (
+        synthetic_data_dds_args if synthetic_data_dds_args is not None else []
+    )
     scripts_location = pathlib.Path(__file__).parent.resolve()
 
     def switch_node_state(action):
@@ -114,7 +118,7 @@ def _do_run(
         if lifecycle_node:
             # First, wait for the node registration to be propagated in ROS 2
             os.system(
-                f'timeout 10 bash -c "until ros2 lifecycle get /{node_name} | grep -q \"unconfigured\"; do sleep 0.1; done"'
+                f'timeout 10 bash -c "until ros2 lifecycle get /{node_name} | grep -q "unconfigured"; do sleep 0.1; done"'
             )
 
             # Should be good to switch now
@@ -181,6 +185,7 @@ def _do_run(
     print(f"{test_name}: Success!\n")
     return 0
 
+
 def run(
     test_name,
     synthetic_data_dds_args,
@@ -228,7 +233,7 @@ def run(
                     timeout_sec=timeout_sec,
                     lifecycle_node=i,
                     node_args=node_args,
-                    rclpy_args=rclpy_args
+                    rclpy_args=rclpy_args,
                 )
                 if result != 0:
                     return result
@@ -236,25 +241,25 @@ def run(
 
         case RunNodes.SIMPLE:
             return _do_run(
-                    test_name=test_name,
-                    synthetic_data_dds_args=synthetic_data_dds_args,
-                    node_type=node_type,
-                    timeout_sec=timeout_sec,
-                    lifecycle_node=False,
-                    node_args=node_args,
-                    rclpy_args=rclpy_args
-                )
+                test_name=test_name,
+                synthetic_data_dds_args=synthetic_data_dds_args,
+                node_type=node_type,
+                timeout_sec=timeout_sec,
+                lifecycle_node=False,
+                node_args=node_args,
+                rclpy_args=rclpy_args,
+            )
 
         case RunNodes.LIFECYCLE:
             return _do_run(
-                    test_name=test_name,
-                    synthetic_data_dds_args=synthetic_data_dds_args,
-                    node_type=node_type,
-                    timeout_sec=timeout_sec,
-                    lifecycle_node=True,
-                    node_args=node_args,
-                    rclpy_args=rclpy_args
-                )
+                test_name=test_name,
+                synthetic_data_dds_args=synthetic_data_dds_args,
+                node_type=node_type,
+                timeout_sec=timeout_sec,
+                lifecycle_node=True,
+                node_args=node_args,
+                rclpy_args=rclpy_args,
+            )
 
 
 def read_points_list(

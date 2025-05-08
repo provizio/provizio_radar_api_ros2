@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Usage test.sh[ ros_version[ c_compiler[ provizio_api[ build_type[ static_analysis]]]]]
+# Usage test.sh[ ros_version[ c_compiler[ provizio_api[ build_type[ static_analysis[ ros_rmw]]]]]]
 
 set -eu
 
@@ -23,6 +23,7 @@ CC=${2:-"gcc"}
 PROVIZIO_RADAR_API=${3:-"dds"}
 CMAKE_BUILD_TYPE=${4:-"Release"}
 STATIC_ANALYSIS=${5:-"OFF"}
+ROS_RMW=${6:-"rmw_fastrtps_cpp"}
 CONTAINER_TAG="provizio_radar_api_ros2_test:${ROS_DISTRO}"
 
 cd $(cd -P -- "$(dirname -- "$0")" && pwd -P)/../..
@@ -38,6 +39,6 @@ docker build \
     --tag ${CONTAINER_TAG} .
 
 # shellcheck disable=SC2086
-docker rm -f provizio_radar_api_ros2_test_${ROS_DISTRO}
+(docker rm -f provizio_radar_api_ros2_test_${ROS_DISTRO} || true) > /dev/null 2>&1
 # shellcheck disable=SC2086
-docker run --name provizio_radar_api_ros2_test_${ROS_DISTRO} --entrypoint "/bin/bash" ${CONTAINER_TAG} -c "source install/setup.bash && source test_env/bin/activate && python3 install/provizio_radar_api_ros2/lib/test_all.py"
+docker run --name provizio_radar_api_ros2_test_${ROS_DISTRO} --entrypoint "/bin/bash" ${CONTAINER_TAG} -c "export RMW_IMPLEMENTATION=${ROS_RMW} && echo \"Testing via \${RMW_IMPLEMENTATION}...\" && source install/setup.bash && source test_env/bin/activate && python3 install/provizio_radar_api_ros2/lib/test_all.py"

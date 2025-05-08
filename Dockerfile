@@ -31,7 +31,10 @@ COPY .github/workflows/install_dependencies.sh /tmp
 RUN /bin/bash -c 'source /opt/ros/${ROS_DISTRO}/setup.bash && /tmp/install_dependencies.sh "${STATIC_ANALYSIS}" "${WORKSPACE_DIR}/test_env" && rm -rf /var/lib/apt/lists/*'
 
 ## Installing missing item in Humble (it's present in other ROS distros)
-RUN if [ "${ROS_DISTRO}" = "humble" ]; then apt update && apt install -y ros-humble-sensor-msgs-py && rm -rf /var/lib/apt/lists/*; fi
+RUN if [ "${ROS_DISTRO}" = "humble" ]; then apt update && apt install -y ros-${ROS_DISTRO}-sensor-msgs-py && rm -rf /var/lib/apt/lists/*; fi
+
+## Install Cyclone DDS ROS RMW in addition to the default Fast-DDS
+RUN apt update && apt install -y ros-${ROS_DISTRO}-rmw-cyclonedds-cpp && rm -rf /var/lib/apt/lists/*
 
 ## Disable "detected dubious ownership in repository" git issue due to running git commands in Docker
 RUN git config --global --add safe.directory '*'
