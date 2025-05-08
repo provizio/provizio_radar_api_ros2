@@ -26,7 +26,8 @@ timeout_sec_long = 38.0  # As failure to set a range takes 30 seconds
 total_test_timeout = (
     timeout_sec_long * 5
 )  # As the setting is done a few times in this test
-wait_for_service_timeout = 10.0
+wait_for_service_timeout = 5.0
+wait_for_service_retries = 8
 test_name = "test_set_radar_range"
 radar_position_id = 15
 radar_pc_port_number = 17703
@@ -88,25 +89,28 @@ class TestNode(test_framework.Node):
         report(f"Response received in {time.time() - self.request_time} sec")
 
     def start_tests(self):
-        if self.client.wait_for_service(wait_for_service_timeout):
-            report("Service available, starting tests...")
-            try:
-                if (
-                    self.test_same_range()
-                    and self.test_same_range()  # Yep, the test is done twice to make sure the quick-set logic is applied
-                    and self.test_ok_slow()
-                    and self.test_ok_fast()
-                    and self.test_fail()
-                    and self.test_drop()
-                    and self.test_concurrent_requests()
-                ):
-                    report("All good")
-                    self.success = True
-                    self.done = True
-            except Exception as e:
-                self.fail(f"Exception {type(e).__name__}: {e}")
-        else:
-            self.fail("Timeout waiting for the service")
+        for i in range(wait_for_service_retries):
+            if self.client.wait_for_service(wait_for_service_timeout):
+                report("Service available, starting tests...")
+                try:
+                    if (
+                        self.test_same_range()
+                        and self.test_same_range()  # Yep, the test is done twice to make sure the quick-set logic is applied
+                        and self.test_ok_slow()
+                        and self.test_ok_fast()
+                        and self.test_fail()
+                        and self.test_drop()
+                        and self.test_concurrent_requests()
+                    ):
+                        report("All good")
+                        self.success = True
+                        self.done = True
+                except Exception as e:
+                    self.fail(f"Exception {type(e).__name__}: {e}")
+                break
+            else:
+                if i == wait_for_service_retries - 1:
+                    self.fail("Timeout waiting for the service")
 
     def test_same_range(self):
         self.requesting("Setting same range...")
