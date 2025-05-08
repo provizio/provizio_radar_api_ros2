@@ -45,6 +45,7 @@ namespace provizio
             node.declare_parameter(pc_udp_port_param, static_cast<int>(PROVIZIO__RADAR_API_DEFAULT_PORT));
             node.declare_parameter(set_range_udp_port_param,
                                    static_cast<int>(PROVIZIO__RADAR_API_SET_RANGE_DEFAULT_PORT));
+            node.declare_parameter(set_range_ip_address_param, "");
         }
 
         ~radar_api_ros2_wrapper_udp()
@@ -326,11 +327,12 @@ namespace provizio
 
         const auto position_id = radar_frame_id_to_position_id(request->header.frame_id);
         const auto current_range = get_current_radar_range(position_id);
+        const auto set_range_ip_address = node.get_parameter(set_range_ip_address_param).as_string();
 
         if (current_range == request->target_range ||
             provizio_set_radar_range(position_id, ros2_range_to_udp_api_radar_range(request->target_range),
                                      static_cast<uint16_t>(node.get_parameter(set_range_udp_port_param).as_int()),
-                                     nullptr) == 0)
+                                     set_range_ip_address.empty() ? nullptr : set_range_ip_address.c_str()) == 0)
         {
             response->actual_range = request->target_range;
         }

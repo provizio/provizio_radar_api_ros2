@@ -32,6 +32,7 @@ namespace provizio
     extern const std::string max_radars_param;
     extern const std::string pc_udp_port_param;
     extern const std::string set_range_udp_port_param;
+    extern const std::string set_range_ip_address_param;
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_CONSTANTS_UDP

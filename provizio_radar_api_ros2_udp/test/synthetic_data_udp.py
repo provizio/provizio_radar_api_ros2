@@ -29,6 +29,14 @@ radar_pc_points = [
     [1.0, 2.0, 3.0, 4.0, 5.0, float("nan")],
 ]
 radar_pc_protocol_version = 2
+set_radar_range_start_range = 1  # medium_range
+set_radar_range_protocol_version = 1
+set_range_ok_fast = 0  # short_range
+set_range_ok_slow = 2  # long_range
+set_range_fail = 3  # ultra_long_range
+set_range_drop = 4  # hyper_long_range
+set_range_slow_time = 15.0
+
 
 stop_event = None
 
@@ -52,13 +60,16 @@ class Runner:
         self.stop_event = stop_event
         self.publish_period = publish_period
         self.radar_pc = radar_pc
-        self.radar_range = 1
+        self.radar_range = set_radar_range_start_range
         self.error_code = None
         self.threads = []
 
         if args.radar_pc or args.set_radar_range:
             self.publishing_pcs = True  # Can be disabled in set_radar_range tests
             self.threads.append(threading.Thread(target=self.publish_radar_pc))
+
+        if args.set_radar_range:
+            self.threads.append(threading.Thread(target=self.set_radar_range))
 
         for it in self.threads:
             it.start()
@@ -103,12 +114,7 @@ class Runner:
                     points = bytearray()
                     for it in chunk:
                         point = pc_point_struct.pack(
-                            it[0],
-                            it[1],
-                            it[2],
-                            it[3],
-                            it[4],
-                            it[5]
+                            it[0], it[1], it[2], it[3], it[4], it[5]
                         )
 
                         points.extend(point)
@@ -130,6 +136,119 @@ class Runner:
                     sock.sendto(packet, ("127.0.0.1", self.args.radar_pc_port_number))
 
                 time.sleep(self.publish_period)
+
+        sock.close()
+
+    def set_radar_range(self):
+        request_struct = struct.Struct(">HHHH")
+        acknowledgement_struct = struct.Struct(">HHHHI")
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock.settimeout(self.publish_period)
+        sock.bind(("127.0.0.1", self.args.set_radar_range_port_number))
+
+        slow_target_range = None
+        time_to_set_range_slowly = None
+
+        while not self.finished():
+            if (
+                slow_target_range is not None
+                and time.time() >= time_to_set_range_slowly
+            ):
+                # Simulates changing the range slowly
+                self.radar_range = slow_target_range
+                slow_target_range = None
+                time_to_set_range_slowly = None
+                print(
+                    f"synthetic_data_udp: Setting the radar range (slow) done = {self.radar_range}"
+                )
+
+            try:
+                error_code = 1
+                request, address = sock.recvfrom(1024)
+                packet_type, protocol_version, radar_position_id, target_range = (
+                    request_struct.unpack_from(request)
+                )
+
+                if packet_type != RadarPacket.SET_MODE.value:
+                    print(
+                        f"synthetic_data_udp: set_radar_range - unexpected packet type received: {packet_type}"
+                    )
+                    self.error_code = 1
+                    self.stop_event.set()
+                    break
+
+                if protocol_version != set_radar_range_protocol_version:
+                    print(
+                        f"synthetic_data_udp: set_radar_range - unexpected protocol version received: {protocol_version}"
+                    )
+                    self.error_code = 1
+                    self.stop_event.set()
+                    break
+
+                if radar_position_id != self.args.radar_position_id:
+                    print(
+                        f"synthetic_data_udp: set_radar_range - unexpected radar_position_id received: {radar_position_id}"
+                    )
+                    self.error_code = 1
+                    self.stop_event.set()
+                    break
+
+                match target_range:
+                    case v if (
+                        v == set_range_ok_fast or v == set_radar_range_start_range
+                    ):
+                        print(
+                            f"synthetic_data_udp: Setting the radar range (fast) = {target_range}"
+                        )
+                        self.radar_range = target_range
+                        self.publishing_pcs = True
+                        error_code = 0
+                        slow_target_range = None
+                        time_to_set_range_slowly = None
+
+                    case v if v == set_range_ok_slow:
+                        print(
+                            f"synthetic_data_udp: Setting the radar range (slow) = {target_range}..."
+                        )
+                        slow_target_range = target_range
+                        time_to_set_range_slowly = time.time() + set_range_slow_time
+                        self.publishing_pcs = True
+                        error_code = 0
+
+                    case v if v == set_range_fail:
+                        # Don't change the range
+                        print(
+                            f"synthetic_data_udp: Don't change the range but keep publishing radar_info. current_range = {self.radar_range}"
+                        )
+                        self.publishing_pcs = True
+                        error_code = 1
+
+                    case v if v == set_range_drop:
+                        # Don't change the range and in addition to that stop publishing
+                        print(
+                            f"synthetic_data_udp: Don't change the range and stop publishing radar_info. current_range = {self.radar_range}"
+                        )
+                        self.publishing_pcs = False
+                        error_code = 1
+
+                if target_range != set_range_drop:
+                    # Send appropriate acknowledgement
+                    sock.sendto(
+                        acknowledgement_struct.pack(
+                            RadarPacket.SET_MODE_ACK.value,
+                            set_radar_range_protocol_version,
+                            radar_position_id,
+                            target_range,
+                            error_code,
+                        ),
+                        address,
+                    )
+
+            except socket.timeout:
+                # It's fine, go on
+                pass
 
         sock.close()
 
@@ -178,6 +297,7 @@ def run(arguments=None):
 def main(arguments=None):
     runner = run(arguments)
     runner.wait()
+
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, lambda sig, frame: stop_event.set())

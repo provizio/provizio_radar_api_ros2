@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Usage test.sh[ ros_version[ c_compiler[ provizio_api[ build_type[ static_analysis[ ros_rmw]]]]]]
+# Usage test.sh[ ros_version[ c_compiler[ provizio_api[ build_type[ ros_rmw[ static_analysis]]]]]]
 
 set -eu
 
@@ -22,8 +22,8 @@ ROS_DISTRO=${1:-"jazzy"}
 CC=${2:-"gcc"}
 PROVIZIO_RADAR_API=${3:-"dds"}
 CMAKE_BUILD_TYPE=${4:-"Release"}
-STATIC_ANALYSIS=${5:-"OFF"}
-ROS_RMW=${6:-"rmw_fastrtps_cpp"}
+ROS_RMW=${5:-"rmw_fastrtps_cpp"}
+STATIC_ANALYSIS=${6:-"OFF"}
 CONTAINER_TAG="provizio_radar_api_ros2_test:${ROS_DISTRO}"
 
 cd $(cd -P -- "$(dirname -- "$0")" && pwd -P)/../..

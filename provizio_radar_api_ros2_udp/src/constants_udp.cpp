@@ -26,5 +26,6 @@ namespace provizio
     const std::string max_radars_param = "max_radars";
     const std::string pc_udp_port_param = "point_clouds_udp_port";
     const std::string set_range_udp_port_param = "set_range_udp_port";
+    const std::string set_range_ip_address_param = "set_range_ip_address";
     // NOLINTEND
 } // namespace provizio
