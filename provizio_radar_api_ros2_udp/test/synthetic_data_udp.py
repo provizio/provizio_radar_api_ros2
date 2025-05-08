@@ -65,7 +65,6 @@ class Runner:
         self.threads = []
 
         if args.radar_pc or args.set_radar_range:
-            self.publishing_pcs = True  # Can be disabled in set_radar_range tests
             self.threads.append(threading.Thread(target=self.publish_radar_pc))
 
         if args.set_radar_range:
@@ -98,44 +97,43 @@ class Runner:
         frame_index = 0
         while not self.finished():
             frame_index = (frame_index + 1) % 4294967295
+        
+            timestamp = time.time_ns()
 
-            if self.publishing_pcs:
-                timestamp = time.time_ns()
+            # get all detections associated with frame index
+            frame = self.radar_pc
+            total_points = len(frame)
+            points_left = total_points
 
-                # get all detections associated with frame index
-                frame = self.radar_pc
-                total_points = len(frame)
-                points_left = total_points
+            for i in range(0, total_points, max_point_per_packet):
+                chunk = frame[i : i + min(max_point_per_packet, points_left)]
+                points_left -= len(chunk)
 
-                for i in range(0, total_points, max_point_per_packet):
-                    chunk = frame[i : i + min(max_point_per_packet, points_left)]
-                    points_left -= len(chunk)
-
-                    points = bytearray()
-                    for it in chunk:
-                        point = pc_point_struct.pack(
-                            it[0], it[1], it[2], it[3], it[4], it[5]
-                        )
-
-                        points.extend(point)
-
-                    packet = bytearray()
-                    header = pc_header_struct.pack(
-                        RadarPacket.POINT_CLOUD.value,
-                        radar_pc_protocol_version,
-                        frame_index,
-                        timestamp,
-                        self.args.radar_position_id,
-                        total_points,
-                        len(chunk),
-                        self.radar_range,
+                points = bytearray()
+                for it in chunk:
+                    point = pc_point_struct.pack(
+                        it[0], it[1], it[2], it[3], it[4], it[5]
                     )
-                    packet.extend(header)
-                    packet.extend(points)
 
-                    sock.sendto(packet, ("127.0.0.1", self.args.radar_pc_port_number))
+                    points.extend(point)
 
-                time.sleep(self.publish_period)
+                packet = bytearray()
+                header = pc_header_struct.pack(
+                    RadarPacket.POINT_CLOUD.value,
+                    radar_pc_protocol_version,
+                    frame_index,
+                    timestamp,
+                    self.args.radar_position_id,
+                    total_points,
+                    len(chunk),
+                    self.radar_range,
+                )
+                packet.extend(header)
+                packet.extend(points)
+
+                sock.sendto(packet, ("127.0.0.1", self.args.radar_pc_port_number))
+
+            time.sleep(self.publish_period)
 
         sock.close()
 
@@ -203,7 +201,6 @@ class Runner:
                             f"synthetic_data_udp: Setting the radar range (fast) = {target_range}"
                         )
                         self.radar_range = target_range
-                        self.publishing_pcs = True
                         error_code = 0
                         slow_target_range = None
                         time_to_set_range_slowly = None
@@ -214,26 +211,29 @@ class Runner:
                         )
                         slow_target_range = target_range
                         time_to_set_range_slowly = time.time() + set_range_slow_time
-                        self.publishing_pcs = True
                         error_code = 0
 
                     case v if v == set_range_fail:
                         # Don't change the range
                         print(
-                            f"synthetic_data_udp: Don't change the range but keep publishing radar_info. current_range = {self.radar_range}"
+                            f"synthetic_data_udp: Don't change the range but send appropriate acknowledgement. current_range = {self.radar_range}"
                         )
-                        self.publishing_pcs = True
                         error_code = 1
+                        slow_target_range = None
+                        time_to_set_range_slowly = None
 
                     case v if v == set_range_drop:
                         # Don't change the range and in addition to that stop publishing
                         print(
-                            f"synthetic_data_udp: Don't change the range and stop publishing radar_info. current_range = {self.radar_range}"
+                            f"synthetic_data_udp: Don't change the range and don't send any acknowledgement. current_range = {self.radar_range}"
                         )
-                        self.publishing_pcs = False
                         error_code = 1
+                        slow_target_range = None
+                        time_to_set_range_slowly = None
 
                 if target_range != set_range_drop:
+                    time.sleep(2 * publish_period) # Enough time to publish at least one new point cloud
+                    
                     # Send appropriate acknowledgement
                     sock.sendto(
                         acknowledgement_struct.pack(

@@ -339,6 +339,9 @@ namespace provizio
         else
         {
             response->actual_range = get_current_radar_range(position_id);
+            RCLCPP_WARN(node.get_logger(), "Failed to change the radar range of %s to %d. The radar range stays %d.",
+                        request->header.frame_id.c_str(), static_cast<int>(request->target_range),
+                        static_cast<int>(response->actual_range));
         }
     }
 } // namespace provizio
