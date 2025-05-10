@@ -118,7 +118,7 @@ def _do_run(
         if lifecycle_node:
             # First, wait for the node registration to be propagated in ROS 2
             os.system(
-                f'timeout 10 bash -c "until ros2 lifecycle get /{node_name} | grep -q "unconfigured"; do sleep 0.1; done"'
+                f'timeout 20 bash -c "until ros2 lifecycle get /{node_name} | grep -q "unconfigured"; do sleep 0.1; done" || echo "Waiting for the lifecycle node timed out!"'
             )
 
             # Should be good to switch now
