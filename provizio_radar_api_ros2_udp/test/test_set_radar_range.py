@@ -69,16 +69,12 @@ class TestNode(test_framework.Node):
                 flush=True,
             )
 
-    def fail(self, error_message):
+    def fail_with_message(self, error_message):
         print(
             f"{TEST_NAME}: {error_message}",
             flush=True,
         )
-
-        self.success = False
-        self.done = True
-
-        return False
+        return self.fail()
 
     def requesting(self, message):
         self.request_time = time.time()
@@ -102,14 +98,13 @@ class TestNode(test_framework.Node):
                         and self.test_concurrent_requests()
                     ):
                         report("All good")
-                        self.success = True
-                        self.done = True
+                        self.succeed()
                 except Exception as e:
-                    self.fail(f"Exception {type(e).__name__}: {e}")
+                    self.fail_with_message(f"Exception {type(e).__name__}: {e}")
                 break
             else:
                 if i == WAIT_FOR_SERVICE_RETRIES - 1:
-                    self.fail("Timeout waiting for the service")
+                    self.fail_with_message("Timeout waiting for the service")
 
     def test_same_range(self):
         self.requesting("Setting same range...")
@@ -121,10 +116,10 @@ class TestNode(test_framework.Node):
         response = result_with_timeout(self.client.call_async(request))
         self.got_response()
 
-        if response.actual_range != request.target_range:
-            return self.fail(
-                f"response.actual_range = {response.actual_range} while {request.target_range} was expected"
-            )
+        if not self.check_value(
+            "response.actual_range", response.actual_range, request.target_range
+        ):
+            return False
 
         self.successful_messages += 1
         return True
@@ -139,10 +134,10 @@ class TestNode(test_framework.Node):
         response = result_with_timeout(self.client.call_async(request))
         self.got_response()
 
-        if response.actual_range != request.target_range:
-            return self.fail(
-                f"response.actual_range = {response.actual_range} while {request.target_range} was expected"
-            )
+        if not self.check_value(
+            "response.actual_range", response.actual_range, request.target_range
+        ):
+            return False
 
         self.successful_messages += 1
         return True
@@ -159,10 +154,10 @@ class TestNode(test_framework.Node):
         )
         self.got_response()
 
-        if response.actual_range != request.target_range:
-            return self.fail(
-                f"response.actual_range = {response.actual_range} while {request.target_range} was expected"
-            )
+        if not self.check_value(
+            "response.actual_range", response.actual_range, request.target_range
+        ):
+            return False
 
         self.successful_messages += 1
         return True
@@ -181,10 +176,10 @@ class TestNode(test_framework.Node):
         )
         self.got_response()
 
-        if response.actual_range != previous_test_range:
-            return self.fail(
-                f"response.actual_range = {response.actual_range} while {previous_test_range} was expected"
-            )
+        if not self.check_value(
+            "response.actual_range", response.actual_range, previous_test_range
+        ):
+            return False
 
         self.successful_messages += 1
         return True
@@ -203,10 +198,10 @@ class TestNode(test_framework.Node):
         )
         self.got_response()
 
-        if response.actual_range != previous_test_range:
-            return self.fail(
-                f"response.actual_range = {response.actual_range} while {previous_test_range} was expected"
-            )
+        if not self.check_value(
+            "response.actual_range", response.actual_range, previous_test_range
+        ):
+            return False
 
         self.successful_messages += 1
         return True
@@ -231,14 +226,14 @@ class TestNode(test_framework.Node):
         response2 = result_with_timeout(future2)
         self.got_response()
 
-        if response1.actual_range != request1.target_range:
-            return self.fail(
-                f"response1.actual_range = {response1.actual_range} while {request1.target_range} was expected"
-            )
-        if response2.actual_range != request2.target_range:
-            return self.fail(
-                f"response2.actual_range = {response2.actual_range} while {request2.target_range} was expected"
-            )
+        if not self.check_value(
+            "response1.actual_range", response1.actual_range, request1.target_range
+        ):
+            return False
+        if not self.check_value(
+            "response2.actual_range", response2.actual_range, request2.target_range
+        ):
+            return False
 
         self.successful_messages += 1
         return True

@@ -25,8 +25,10 @@ import sensor_msgs_py.point_cloud2 as pc2
 import subprocess
 import time
 from collections import namedtuple
+from collections.abc import Iterable
 from typing import Iterable, List, NamedTuple, Optional
 import synthetic_data_udp
+import traceback
 
 
 package_name = "provizio_radar_api_ros2"
@@ -35,6 +37,7 @@ package_name = "provizio_radar_api_ros2"
 class Node(rclpy.node.Node):
     def __init__(self, test_name):
         super().__init__(test_name)
+        self.test_name = test_name
 
         self.qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.RELIABLE,
@@ -46,6 +49,77 @@ class Node(rclpy.node.Node):
         self.successful_messages = 0
         self.success = None
         self.done = False
+
+    def fail(self):
+        traceback.print_stack()
+        
+        if self.done:
+            if self.success:
+                raise RuntimeError("Can't fail a test after it succeeded")
+            return
+
+        self.success = False
+        self.done = True
+
+        return False
+
+    def succeed(self):
+        if self.done:
+            if not self.success:
+                raise RuntimeError("Can't succeed the test after it failed")
+            return
+
+        self.success = True
+        self.done = True
+
+        return True
+
+    def succeed_unless_already_done(self):
+        if not self.done:
+            return self.succeed()
+        return False
+
+    def succeed_if_enough_and_not_yet_done(self, num_messages_needed):
+        if self.successful_messages >= num_messages_needed:
+            return self.succeed_unless_already_done()
+        return False
+
+    def message_checked(self, num_messages_needed):
+        if not self.done:
+            self.successful_messages += 1
+            return self.succeed_if_enough_and_not_yet_done(num_messages_needed)
+        return False
+
+    def check_age(self, header, max_age):
+        age = message_age(header)
+        print(f"{self.test_name}: Received message of age = {age} sec")
+        if age > max_age:
+            print(
+                f"{self.test_name}: Message delivery took too long: {age} sec",
+                flush=True,
+            )
+            self.fail()
+            return False
+        return True
+
+    def check_value(self, value_name, actual, expected):
+        if is_iterable(expected):
+            matches = False
+            for expected_val in expected:
+                if actual == expected_val:
+                    matches = True
+                    break
+        else:
+            matches = actual == expected
+
+        if not matches:
+            print(
+                f"{self.test_name}: {value_name} = {actual} received, while {'one of ' if is_iterable(expected) else ''}{expected} was expected",
+                flush=True,
+            )
+            self.fail()
+            return False
+        return True
 
 
 class RunNodes(Enum):
@@ -68,7 +142,9 @@ def _do_run(
     rclpy.init(args=rclpy_args)
 
     package_name = "provizio_radar_api_ros2"
-    node_name = ("provizio_radar_lifecycle_node" if lifecycle_node else "provizio_radar_node")
+    node_name = (
+        "provizio_radar_lifecycle_node" if lifecycle_node else "provizio_radar_node"
+    )
 
     print(f"Running test {test_name} with {node_name} (UDP API)...")
 
@@ -173,6 +249,7 @@ def _do_run(
 
     print(f"{test_name}: Success!\n")
     return 0
+
 
 def run(
     test_name,
@@ -289,3 +366,7 @@ def message_age(header):
     header_timestamp = header.stamp.sec * ns_in_sec + header.stamp.nanosec
     timestamp_now = time.time_ns()
     return float(timestamp_now - header_timestamp) / ns_in_sec
+
+
+def is_iterable(var):
+    return isinstance(var, Iterable) and not isinstance(var, (str, bytes))
