@@ -17,23 +17,23 @@
 from sensor_msgs.msg import Image
 import test_framework
 
-dds_domain_id = 24
-timeout_sec = 8.0
-max_message_age = 0.5
-test_name = "test_camera"
-frame_id = "test_camera_frame"
-num_messages_needed = 10
-expected_encoding = "test_encoding"
-expected_width = 2000
-expected_height = 1000
-expected_step = 9
-expected_is_bigendian = False
-expected_data = bytearray([1, 2, 4, 8, 16, 32, 64, 128])
+DDS_DOMAIN_ID = 24
+TIMEOUT_SEC = 8.0
+MAX_MESSAGE_AGE = 0.5
+TEST_NAME = "test_camera"
+FRAME_ID = "test_camera_frame"
+NUM_MESSAGES_NEEDED = 10
+EXPECTED_ENCODING = "test_encoding"
+EXPECTED_WIDTH = 2000
+EXPECTED_HEIGHT = 1000
+EXPECTED_STEP = 9
+EXPECTED_IS_BIGENDIAN = False
+EXPECTED_DATA = bytearray([1, 2, 4, 8, 16, 32, 64, 128])
 
 
 class TestNode(test_framework.Node):
     def __init__(self):
-        super().__init__(test_name)
+        super().__init__(TEST_NAME)
         self.subscription = self.create_subscription(
             Image,
             "/provizio/camera_raw",
@@ -42,10 +42,10 @@ class TestNode(test_framework.Node):
         )
 
     def listener_callback(self, msg: Image):
-        if msg.header.frame_id != frame_id:
+        if msg.header.frame_id != FRAME_ID:
             # Something else received, we want another frame_id
             print(
-                f"{test_name}: Unexpected frame_id message received: {msg.header.frame_id}"
+                f"{TEST_NAME}: Unexpected frame_id message received: {msg.header.frame_id}"
             )
             return
 
@@ -55,64 +55,64 @@ class TestNode(test_framework.Node):
             return
 
         message_age = test_framework.message_age(msg.header)
-        print(f"{test_name}: Received message of age = {message_age} sec")
-        if message_age > max_message_age:
+        print(f"{TEST_NAME}: Received message of age = {message_age} sec")
+        if message_age > MAX_MESSAGE_AGE:
             print(
-                f"{test_name}: Message delivery took too long: {message_age} sec",
+                f"{TEST_NAME}: Message delivery took too long: {message_age} sec",
                 flush=True,
             )
 
             self.success = False
             self.done = True
 
-        if msg.encoding != expected_encoding:
+        if msg.encoding != EXPECTED_ENCODING:
             print(
-                f"{test_name}: encoding = {msg.encoding} received while {expected_encoding} was expected",
+                f"{TEST_NAME}: encoding = {msg.encoding} received while {EXPECTED_ENCODING} was expected",
                 flush=True,
             )
 
             self.success = False
             self.done = True
 
-        if msg.width != expected_width:
+        if msg.width != EXPECTED_WIDTH:
             print(
-                f"{test_name}: width = {msg.width} received while {expected_width} was expected",
+                f"{TEST_NAME}: width = {msg.width} received while {EXPECTED_WIDTH} was expected",
                 flush=True,
             )
 
             self.success = False
             self.done = True
 
-        if msg.height != expected_height:
+        if msg.height != EXPECTED_HEIGHT:
             print(
-                f"{test_name}: height = {msg.height} received while {expected_height} was expected",
+                f"{TEST_NAME}: height = {msg.height} received while {EXPECTED_HEIGHT} was expected",
                 flush=True,
             )
 
             self.success = False
             self.done = True
 
-        if msg.step != expected_step:
+        if msg.step != EXPECTED_STEP:
             print(
-                f"{test_name}: step = {msg.step} received while {expected_step} was expected",
+                f"{TEST_NAME}: step = {msg.step} received while {EXPECTED_STEP} was expected",
                 flush=True,
             )
 
             self.success = False
             self.done = True
 
-        if msg.is_bigendian != expected_is_bigendian:
+        if msg.is_bigendian != EXPECTED_IS_BIGENDIAN:
             print(
-                f"{test_name}: is_bigendian = {msg.is_bigendian} received while {expected_is_bigendian} was expected",
+                f"{TEST_NAME}: is_bigendian = {msg.is_bigendian} received while {EXPECTED_IS_BIGENDIAN} was expected",
                 flush=True,
             )
 
             self.success = False
             self.done = True
 
-        if msg.data != expected_data:
+        if msg.data != EXPECTED_DATA:
             print(
-                f"{test_name}: data = {msg.data} received while {expected_data} was expected",
+                f"{TEST_NAME}: data = {msg.data} received while {EXPECTED_DATA} was expected",
                 flush=True,
             )
 
@@ -120,23 +120,23 @@ class TestNode(test_framework.Node):
             self.done = True
 
         self.successful_messages += 1
-        if self.successful_messages >= num_messages_needed:
+        if self.successful_messages >= NUM_MESSAGES_NEEDED:
             self.success = True
             self.done = True
 
 
 def main(args=None):
     return test_framework.run(
-        test_name=test_name,
+        test_name=TEST_NAME,
         synthetic_data_dds_args=[
             "--camera_frames",
-            f"--frame_id={frame_id}",
-            f"--dds_domain_id={dds_domain_id}",
+            f"--frame_id={FRAME_ID}",
+            f"--dds_domain_id={DDS_DOMAIN_ID}",
         ],
         node_type=TestNode,
-        timeout_sec=timeout_sec,
+        timeout_sec=TIMEOUT_SEC,
         rclpy_args=args,
-        node_args=[["provizio_dds_domain_id", dds_domain_id]],
+        node_args=[["provizio_dds_domain_id", DDS_DOMAIN_ID]],
     )
 
 

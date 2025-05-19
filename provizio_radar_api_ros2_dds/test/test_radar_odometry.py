@@ -19,10 +19,10 @@ import test_framework
 
 dds_domain_id = 23
 timeout_sec = 8.0
-max_message_age = 0.5
+MAX_MESSAGE_AGE = 0.5
 test_name = "test_radar_odometry"
 frame_id = "test_radar_odometry_frame"
-num_messages_needed = 10
+NUM_MESSAGES_NEEDED = 10
 expected_child_frame_id = "odometry_child_frame"
 expected_pose_covariance = [
     0.0,
@@ -131,7 +131,7 @@ class TestNode(test_framework.Node):
 
         message_age = test_framework.message_age(msg.header)
         print(f"{test_name}: Received message of age = {message_age} sec")
-        if message_age > max_message_age:
+        if message_age > MAX_MESSAGE_AGE:
             print(
                 f"{test_name}: Message delivery took too long: {message_age} sec",
                 flush=True,
@@ -221,7 +221,7 @@ class TestNode(test_framework.Node):
             self.done = True
 
         self.successful_messages += 1
-        if self.successful_messages >= num_messages_needed:
+        if self.successful_messages >= NUM_MESSAGES_NEEDED:
             self.success = True
             self.done = True
 

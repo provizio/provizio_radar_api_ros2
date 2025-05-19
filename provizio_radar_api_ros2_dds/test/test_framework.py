@@ -29,7 +29,7 @@ from collections import namedtuple
 from typing import Iterable, List, NamedTuple, Optional
 
 
-package_name = "provizio_radar_api_ros2"
+PACKAGE_NAME = "provizio_radar_api_ros2"
 
 
 class Node(rclpy.node.Node):
@@ -213,14 +213,14 @@ def run(
 
         case RunNodes.ALL_AVAILABLE:
             available_nodes = (
-                subprocess.check_output(["ros2", "pkg", "executables", package_name])
+                subprocess.check_output(["ros2", "pkg", "executables", PACKAGE_NAME])
                 .decode("utf-8")
                 .splitlines()
             )
             nodes = []
-            if f"{package_name} provizio_radar_node" in available_nodes:
+            if f"{PACKAGE_NAME} provizio_radar_node" in available_nodes:
                 nodes.append(False)
-            if f"{package_name} provizio_radar_lifecycle_node" in available_nodes:
+            if f"{PACKAGE_NAME} provizio_radar_lifecycle_node" in available_nodes:
                 nodes.append(True)
             if len(nodes) == 0:
                 print(f"{test_name}: No nodes found!")

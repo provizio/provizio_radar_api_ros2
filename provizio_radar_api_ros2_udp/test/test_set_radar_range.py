@@ -20,31 +20,30 @@ import test_framework
 import threading
 import time
 
-dds_domain_id = 26
-timeout_sec = 2.0
-timeout_sec_long = 38.0  # As failure to set a range takes 30 seconds
-total_test_timeout = (
-    timeout_sec_long * 5
+TIMEOUT_SEC = 2.0
+TIMEOUT_SEC_LONG = 38.0  # As failure to set a range takes 30 seconds
+TOTAL_TEST_TIMEOUT = (
+    TIMEOUT_SEC_LONG * 5
 )  # As the setting is done a few times in this test
-wait_for_service_timeout = 5.0
-wait_for_service_retries = 8
-test_name = "test_set_radar_range"
-radar_position_id = 15
-radar_pc_port_number = 17703
-set_range_port_number = 17704
-set_radar_range_start_range = RadarInfo.MEDIUM_RANGE
-set_range_ok_fast = RadarInfo.SHORT_RANGE
-set_range_ok_slow = RadarInfo.LONG_RANGE
-set_range_fail = RadarInfo.ULTRA_LONG_RANGE
-set_range_drop = RadarInfo.HYPER_LONG_RANGE
-set_range_ip_address = "127.0.0.1"
+WAIT_FOR_SERVICE_TIMEOUT = 5.0
+WAIT_FOR_SERVICE_RETRIES = 8
+TEST_NAME = "test_set_radar_range"
+RADAR_POSITION_ID = 15
+RADAR_PC_PORT_NUMBER = 17703
+SET_RANGE_PORT_NUMBER = 17704
+SET_RADAR_RANGE_START_RANGE = RadarInfo.MEDIUM_RANGE
+SET_RANGE_OK_FAST = RadarInfo.SHORT_RANGE
+SET_RANGE_OK_SLOW = RadarInfo.LONG_RANGE
+SET_RANGE_FAIL = RadarInfo.ULTRA_LONG_RANGE
+SET_RANGE_DROP = RadarInfo.HYPER_LONG_RANGE
+SET_RANGE_IP_ADDRESS = "127.0.0.1"
 
 
 def report(message):
-    print(f"{test_name}: {message}")
+    print(f"{TEST_NAME}: {message}")
 
 
-def result_with_timeout(future, timeout=timeout_sec):
+def result_with_timeout(future, timeout=TIMEOUT_SEC):
     time_was = time.time()
     while not future.done():
         if time.time() - time_was >= timeout:
@@ -56,7 +55,7 @@ def result_with_timeout(future, timeout=timeout_sec):
 
 class TestNode(test_framework.Node):
     def __init__(self):
-        super().__init__(test_name)
+        super().__init__(TEST_NAME)
         self.client = self.create_client(SetRadarRange, "/provizio/set_radar_range")
         self.start_thread = threading.Thread(target=self.start_tests)
         self.start_thread.start()
@@ -66,13 +65,13 @@ class TestNode(test_framework.Node):
             self.start_thread.join()
         except:
             print(
-                f"{test_name}: Failed to join the tests thread",
+                f"{TEST_NAME}: Failed to join the tests thread",
                 flush=True,
             )
 
     def fail(self, error_message):
         print(
-            f"{test_name}: {error_message}",
+            f"{TEST_NAME}: {error_message}",
             flush=True,
         )
 
@@ -89,8 +88,8 @@ class TestNode(test_framework.Node):
         report(f"Response received in {time.time() - self.request_time} sec")
 
     def start_tests(self):
-        for i in range(wait_for_service_retries):
-            if self.client.wait_for_service(wait_for_service_timeout):
+        for i in range(WAIT_FOR_SERVICE_RETRIES):
+            if self.client.wait_for_service(WAIT_FOR_SERVICE_TIMEOUT):
                 report("Service available, starting tests...")
                 try:
                     if (
@@ -109,15 +108,15 @@ class TestNode(test_framework.Node):
                     self.fail(f"Exception {type(e).__name__}: {e}")
                 break
             else:
-                if i == wait_for_service_retries - 1:
+                if i == WAIT_FOR_SERVICE_RETRIES - 1:
                     self.fail("Timeout waiting for the service")
 
     def test_same_range(self):
         self.requesting("Setting same range...")
 
         request = SetRadarRange.Request()
-        request.header.frame_id = f"provizio_radar_{radar_position_id}"
-        request.target_range = set_radar_range_start_range
+        request.header.frame_id = f"provizio_radar_{RADAR_POSITION_ID}"
+        request.target_range = SET_RADAR_RANGE_START_RANGE
 
         response = result_with_timeout(self.client.call_async(request))
         self.got_response()
@@ -134,8 +133,8 @@ class TestNode(test_framework.Node):
         self.requesting("Setting range fast...")
 
         request = SetRadarRange.Request()
-        request.header.frame_id = f"provizio_radar_{radar_position_id}"
-        request.target_range = set_range_ok_fast
+        request.header.frame_id = f"provizio_radar_{RADAR_POSITION_ID}"
+        request.target_range = SET_RANGE_OK_FAST
 
         response = result_with_timeout(self.client.call_async(request))
         self.got_response()
@@ -152,11 +151,11 @@ class TestNode(test_framework.Node):
         self.requesting("Setting range slow...")
 
         request = SetRadarRange.Request()
-        request.header.frame_id = f"provizio_radar_{radar_position_id}"
-        request.target_range = set_range_ok_slow
+        request.header.frame_id = f"provizio_radar_{RADAR_POSITION_ID}"
+        request.target_range = SET_RANGE_OK_SLOW
 
         response = result_with_timeout(
-            self.client.call_async(request), timeout=timeout_sec_long
+            self.client.call_async(request), timeout=TIMEOUT_SEC_LONG
         )
         self.got_response()
 
@@ -171,14 +170,14 @@ class TestNode(test_framework.Node):
     def test_fail(self):
         self.requesting("Setting range to fail...")
 
-        previous_test_range = set_range_ok_fast
+        previous_test_range = SET_RANGE_OK_FAST
 
         request = SetRadarRange.Request()
-        request.header.frame_id = f"provizio_radar_{radar_position_id}"
-        request.target_range = set_range_fail
+        request.header.frame_id = f"provizio_radar_{RADAR_POSITION_ID}"
+        request.target_range = SET_RANGE_FAIL
 
         response = result_with_timeout(
-            self.client.call_async(request), timeout=timeout_sec_long
+            self.client.call_async(request), timeout=TIMEOUT_SEC_LONG
         )
         self.got_response()
 
@@ -193,14 +192,14 @@ class TestNode(test_framework.Node):
     def test_drop(self):
         self.requesting("Setting range to drop...")
 
-        previous_test_range = set_range_ok_fast
+        previous_test_range = SET_RANGE_OK_FAST
 
         request = SetRadarRange.Request()
-        request.header.frame_id = f"provizio_radar_{radar_position_id}"
-        request.target_range = set_range_drop
+        request.header.frame_id = f"provizio_radar_{RADAR_POSITION_ID}"
+        request.target_range = SET_RANGE_DROP
 
         response = result_with_timeout(
-            self.client.call_async(request), timeout=timeout_sec_long
+            self.client.call_async(request), timeout=TIMEOUT_SEC_LONG
         )
         self.got_response()
 
@@ -216,17 +215,17 @@ class TestNode(test_framework.Node):
         self.requesting("Setting ranges concurrently...")
 
         request1 = SetRadarRange.Request()
-        request1.header.frame_id = f"provizio_radar_{radar_position_id}"
-        request1.target_range = set_range_ok_slow
+        request1.header.frame_id = f"provizio_radar_{RADAR_POSITION_ID}"
+        request1.target_range = SET_RANGE_OK_SLOW
 
         request2 = SetRadarRange.Request()
-        request2.header.frame_id = f"provizio_radar_{radar_position_id}"
-        request2.target_range = set_range_ok_fast
+        request2.header.frame_id = f"provizio_radar_{RADAR_POSITION_ID}"
+        request2.target_range = SET_RANGE_OK_FAST
 
         future1 = self.client.call_async(request1)
         future2 = self.client.call_async(request2)
 
-        response1 = result_with_timeout(future1, timeout=timeout_sec_long)
+        response1 = result_with_timeout(future1, timeout=TIMEOUT_SEC_LONG)
         self.got_response()
 
         response2 = result_with_timeout(future2)
@@ -247,20 +246,20 @@ class TestNode(test_framework.Node):
 
 def main(args=None):
     return test_framework.run(
-        test_name=test_name,
+        test_name=TEST_NAME,
         synthetic_data_udp_args=[
             "--set_radar_range",
-            f"--radar_position_id={radar_position_id}",
-            f"--radar_pc_port_number={radar_pc_port_number}",
-            f"--set_radar_range_port_number={set_range_port_number}",
+            f"--radar_position_id={RADAR_POSITION_ID}",
+            f"--radar_pc_port_number={RADAR_PC_PORT_NUMBER}",
+            f"--set_radar_range_port_number={SET_RANGE_PORT_NUMBER}",
         ],
         node_type=TestNode,
-        timeout_sec=total_test_timeout,
+        timeout_sec=TOTAL_TEST_TIMEOUT,
         rclpy_args=args,
         node_args=[
-            ["point_clouds_udp_port", radar_pc_port_number],
-            ["set_range_udp_port", set_range_port_number],
-            ["set_range_ip_address", set_range_ip_address],
+            ["point_clouds_udp_port", RADAR_PC_PORT_NUMBER],
+            ["set_range_udp_port", SET_RANGE_PORT_NUMBER],
+            ["set_range_ip_address", SET_RANGE_IP_ADDRESS],
         ],
     )
 

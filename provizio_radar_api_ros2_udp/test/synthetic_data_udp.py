@@ -23,19 +23,19 @@ import time
 import threading
 
 
-publish_period = 0.1
-radar_pc_points = [
+PUBLISH_PERIOD = 0.1
+RADAR_PC_POINTS = [
     [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
     [1.0, 2.0, 3.0, 4.0, 5.0, float("nan")],
 ]
-radar_pc_protocol_version = 2
-set_radar_range_start_range = 1  # medium_range
-set_radar_range_protocol_version = 1
-set_range_ok_fast = 0  # short_range
-set_range_ok_slow = 2  # long_range
-set_range_fail = 3  # ultra_long_range
-set_range_drop = 4  # hyper_long_range
-set_range_slow_time = 15.0
+RADAR_PC_PROTOCOL_VERSION = 2
+SET_RADAR_RANGE_START_RANGE = 1  # medium_range
+SET_RADAR_RANGE_PROTOCOL_VERSION = 1
+SET_RANGE_OK_FAST = 0  # short_range
+SET_RANGE_OK_SLOW = 2  # long_range
+SET_RANGE_FAIL = 3  # ultra_long_range
+SET_RANGE_DROP = 4  # hyper_long_range
+SET_RANGE_SLOW_TIME = 15.0
 
 
 stop_event = None
@@ -53,14 +53,14 @@ class Runner:
         self,
         stop_event,
         args=None,
-        radar_pc=radar_pc_points,
-        publish_period=publish_period,
+        radar_pc=RADAR_PC_POINTS,
+        publish_period=PUBLISH_PERIOD,
     ):
         self.args = args
         self.stop_event = stop_event
         self.publish_period = publish_period
         self.radar_pc = radar_pc
-        self.radar_range = set_radar_range_start_range
+        self.radar_range = SET_RADAR_RANGE_START_RANGE
         self.error_code = None
         self.threads = []
 
@@ -120,7 +120,7 @@ class Runner:
                 packet = bytearray()
                 header = pc_header_struct.pack(
                     RadarPacket.POINT_CLOUD.value,
-                    radar_pc_protocol_version,
+                    RADAR_PC_PROTOCOL_VERSION,
                     frame_index,
                     timestamp,
                     self.args.radar_position_id,
@@ -177,7 +177,7 @@ class Runner:
                     self.stop_event.set()
                     break
 
-                if protocol_version != set_radar_range_protocol_version:
+                if protocol_version != SET_RADAR_RANGE_PROTOCOL_VERSION:
                     print(
                         f"synthetic_data_udp: set_radar_range - unexpected protocol version received: {protocol_version}"
                     )
@@ -195,7 +195,7 @@ class Runner:
 
                 match target_range:
                     case v if (
-                        v == set_range_ok_fast or v == set_radar_range_start_range
+                        v == SET_RANGE_OK_FAST or v == SET_RADAR_RANGE_START_RANGE
                     ):
                         print(
                             f"synthetic_data_udp: Setting the radar range (fast) = {target_range}"
@@ -205,15 +205,15 @@ class Runner:
                         slow_target_range = None
                         time_to_set_range_slowly = None
 
-                    case v if v == set_range_ok_slow:
+                    case v if v == SET_RANGE_OK_SLOW:
                         print(
                             f"synthetic_data_udp: Setting the radar range (slow) = {target_range}..."
                         )
                         slow_target_range = target_range
-                        time_to_set_range_slowly = time.time() + set_range_slow_time
+                        time_to_set_range_slowly = time.time() + SET_RANGE_SLOW_TIME
                         error_code = 0
 
-                    case v if v == set_range_fail:
+                    case v if v == SET_RANGE_FAIL:
                         # Don't change the range
                         print(
                             f"synthetic_data_udp: Don't change the range but send appropriate acknowledgement. current_range = {self.radar_range}"
@@ -222,7 +222,7 @@ class Runner:
                         slow_target_range = None
                         time_to_set_range_slowly = None
 
-                    case v if v == set_range_drop:
+                    case v if v == SET_RANGE_DROP:
                         # Don't change the range and in addition to that stop publishing
                         print(
                             f"synthetic_data_udp: Don't change the range and don't send any acknowledgement. current_range = {self.radar_range}"
@@ -231,14 +231,14 @@ class Runner:
                         slow_target_range = None
                         time_to_set_range_slowly = None
 
-                if target_range != set_range_drop:
-                    time.sleep(2 * publish_period) # Enough time to publish at least one new point cloud
+                if target_range != SET_RANGE_DROP:
+                    time.sleep(2 * PUBLISH_PERIOD) # Enough time to publish at least one new point cloud
                     
                     # Send appropriate acknowledgement
                     sock.sendto(
                         acknowledgement_struct.pack(
                             RadarPacket.SET_MODE_ACK.value,
-                            set_radar_range_protocol_version,
+                            SET_RADAR_RANGE_PROTOCOL_VERSION,
                             radar_position_id,
                             target_range,
                             error_code,

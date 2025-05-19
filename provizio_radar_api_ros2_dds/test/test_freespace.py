@@ -18,24 +18,24 @@ import test_framework
 from enum import Enum
 from geometry_msgs.msg import PolygonStamped
 
-has_polygon_instance_stamped = False
+HAS_POLYGON_INSTANCE_STAMPED = False
 try:
     from geometry_msgs.msg import PolygonInstanceStamped
 
-    has_polygon_instance_stamped = True
+    HAS_POLYGON_INSTANCE_STAMPED = True
 except ImportError:
     # No PolygonInstanceStamped
     pass
 
 
-dds_domain_id = 25
-timeout_sec = 8.0
-max_message_age = 0.5
-test_name = "test_freespace"
-frame_id = "test_freespace_frame"
-num_messages_needed = 10
-expected_polygon_id = 120
-expected_points = [[1.0, 2.0, 3.0], [-1.0, -2.0, -3.0], [10.0, 200.0, 3000.0]]
+DDS_DOMAIN_ID = 25
+TIMEOUT_SEC = 8.0
+MAX_MESSAGE_AGE = 0.5
+TEST_NAME = "test_freespace"
+FRAME_ID = "test_freespace_frame"
+NUM_MESSAGES_NEEDED = 10
+EXPECTED_POLYGON_ID = 120
+EXPECTED_POINTS = [[1.0, 2.0, 3.0], [-1.0, -2.0, -3.0], [10.0, 200.0, 3000.0]]
 
 
 class FreespaceSource(Enum):
@@ -49,7 +49,7 @@ _source = FreespaceSource.RADAR
 class TestNode(test_framework.Node):
 
     def __init__(self):
-        super().__init__(test_name)
+        super().__init__(TEST_NAME)
         self.successful_messages_instance_stamped = 0
         self.successful_messages_stamped = 0
         self.subscription = self.create_subscription(
@@ -62,7 +62,7 @@ class TestNode(test_framework.Node):
             self.listener_callback,
             qos_profile=self.qos_profile,
         )
-        if has_polygon_instance_stamped:
+        if HAS_POLYGON_INSTANCE_STAMPED:
             self.subscription = self.create_subscription(
                 PolygonInstanceStamped,
                 (
@@ -75,14 +75,14 @@ class TestNode(test_framework.Node):
             )
 
     def listener_callback(self, msg):
-        instance_message = has_polygon_instance_stamped and not isinstance(
+        instance_message = HAS_POLYGON_INSTANCE_STAMPED and not isinstance(
             msg, PolygonStamped
         )
 
-        if msg.header.frame_id != frame_id:
+        if msg.header.frame_id != FRAME_ID:
             # Something else received, we want another frame_id
             print(
-                f"{test_name}: Unexpected frame_id message received: {msg.header.frame_id}"
+                f"{TEST_NAME}: Unexpected frame_id message received: {msg.header.frame_id}"
             )
             return
 
@@ -93,20 +93,20 @@ class TestNode(test_framework.Node):
 
         message_age = test_framework.message_age(msg.header)
         print(
-            f"{test_name}: Received message of age = {message_age} sec of type {type(msg).__name__}"
+            f"{TEST_NAME}: Received message of age = {message_age} sec of type {type(msg).__name__}"
         )
-        if message_age > max_message_age:
+        if message_age > MAX_MESSAGE_AGE:
             print(
-                f"{test_name}: Message delivery took too long: {message_age} sec",
+                f"{TEST_NAME}: Message delivery took too long: {message_age} sec",
                 flush=True,
             )
 
             self.success = False
             self.done = True
 
-        if instance_message and msg.polygon.id != expected_polygon_id:
+        if instance_message and msg.polygon.id != EXPECTED_POLYGON_ID:
             print(
-                f"{test_name}: polygon id = {msg.polygon.id} received, {expected_polygon_id} was expected",
+                f"{TEST_NAME}: polygon id = {msg.polygon.id} received, {EXPECTED_POLYGON_ID} was expected",
                 flush=True,
             )
 
@@ -120,9 +120,9 @@ class TestNode(test_framework.Node):
                 msg.polygon.polygon.points if instance_message else msg.polygon.points
             )
         ]
-        if polygon_points != expected_points:
+        if polygon_points != EXPECTED_POINTS:
             print(
-                f"{test_name}: polygon points = {polygon_points} received, {expected_points} was expected",
+                f"{TEST_NAME}: polygon points = {polygon_points} received, {EXPECTED_POINTS} was expected",
                 flush=True,
             )
 
@@ -135,9 +135,9 @@ class TestNode(test_framework.Node):
         else:
             self.successful_messages_stamped += 1
 
-        if self.successful_messages_stamped >= num_messages_needed and (
-            not has_polygon_instance_stamped
-            or self.successful_messages_instance_stamped >= num_messages_needed
+        if self.successful_messages_stamped >= NUM_MESSAGES_NEEDED and (
+            not HAS_POLYGON_INSTANCE_STAMPED
+            or self.successful_messages_instance_stamped >= NUM_MESSAGES_NEEDED
         ):
             self.success = True
             self.done = True
@@ -145,25 +145,25 @@ class TestNode(test_framework.Node):
 
 def main(source: FreespaceSource, args=None):
     global _source
-    global test_name
+    global TEST_NAME
 
     _source = source
-    test_name = f"test_freespace_{source.name}"
+    TEST_NAME = f"test_freespace_{source.name}"
     return test_framework.run(
-        test_name=test_name,
+        test_name=TEST_NAME,
         synthetic_data_dds_args=[
             (
                 "--radar_freespace"
                 if _source == FreespaceSource.RADAR
                 else "--camera_freespace"
             ),
-            f"--frame_id={frame_id}",
-            f"--dds_domain_id={dds_domain_id}",
+            f"--frame_id={FRAME_ID}",
+            f"--dds_domain_id={DDS_DOMAIN_ID}",
         ],
         node_type=TestNode,
-        timeout_sec=timeout_sec,
+        timeout_sec=TIMEOUT_SEC,
         rclpy_args=args,
-        node_args=[["provizio_dds_domain_id", dds_domain_id]],
+        node_args=[["provizio_dds_domain_id", DDS_DOMAIN_ID]],
     )
 
 
