@@ -53,7 +53,12 @@ class TestNode(test_framework.Node):
         self.check_age(msg.header, MAX_MESSAGE_AGE)
 
         points = test_framework.read_points_list(msg)
-        self.check_value("points", str(points), [EXPECTED_POINTS, EXPECTED_POINTS_NP])
+        self.check_value(
+            "points",
+            str(points),
+            [EXPECTED_POINTS, EXPECTED_POINTS_NP],
+            multiple_options=True,
+        )
 
         self.message_checked(NUM_MESSAGES_NEEDED)
 

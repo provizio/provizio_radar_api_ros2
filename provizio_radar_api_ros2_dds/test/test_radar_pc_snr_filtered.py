@@ -22,11 +22,12 @@ TIMEOUT_SEC = 8.0
 MAX_MESSAGE_AGE = 0.5
 TEST_NAME = "test_radar_pc_snr_filtered"
 FRAME_ID = "test_radar_pc_snr_filtered_frame"
-SNR_THRESHOLD = 2.0
 MAX_SNR = 5.0
 EXPECTED_POINTS = "[Point(x=1.0, y=2.0, z=3.0, radar_relative_radial_velocity=4.0, signal_to_noise_ratio=5.0, ground_relative_radial_velocity=nan)]"
 EXPECTED_POINTS_NP = "[Point(x=np.float32(1.0), y=np.float32(2.0), z=np.float32(3.0), radar_relative_radial_velocity=np.float32(4.0), signal_to_noise_ratio=np.float32(5.0), ground_relative_radial_velocity=np.float32(nan))]"
 NUM_MESSAGES_NEEDED = 10
+
+snr_threshold = 2.0
 
 
 class TestNode(test_framework.Node):
@@ -52,42 +53,23 @@ class TestNode(test_framework.Node):
             # Don't overwrite the result
             return
 
-        message_age = test_framework.message_age(msg.header)
-        print(f"{TEST_NAME}: Received message of age = {message_age} sec")
-        if message_age > MAX_MESSAGE_AGE:
-            print(
-                f"{TEST_NAME}: Message delivery took too long: {message_age} sec",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
+        self.check_age(msg.header, MAX_MESSAGE_AGE)
 
         points = test_framework.read_points_list(msg)
-        if (
-            SNR_THRESHOLD <= MAX_SNR
-            and str(points) != EXPECTED_POINTS
-            and str(points) != EXPECTED_POINTS_NP
-        ) or (SNR_THRESHOLD > MAX_SNR and str(points) != "[]"):
-            print(
-                f"{TEST_NAME}: {points} received, {EXPECTED_POINTS if SNR_THRESHOLD <= MAX_SNR else '[]'} was expected",
-                flush=True,
-            )
+        self.check_value(
+            "points",
+            str(points),
+            [EXPECTED_POINTS, EXPECTED_POINTS_NP] if snr_threshold <= MAX_SNR else "[]",
+            multiple_options=(snr_threshold <= MAX_SNR),
+        )
 
-            self.success = False
-            self.done = True
-            return
-
-        self.successful_messages += 1
-        if self.successful_messages >= NUM_MESSAGES_NEEDED:
-            self.success = True
-            self.done = True
+        self.message_checked(NUM_MESSAGES_NEEDED)
 
 
 def main(high_snr_threshold=False, args=None):
-    global SNR_THRESHOLD
+    global snr_threshold
     if high_snr_threshold:
-        SNR_THRESHOLD = 100.0
+        snr_threshold = 100.0
 
     return test_framework.run(
         test_name=TEST_NAME,
@@ -101,7 +83,7 @@ def main(high_snr_threshold=False, args=None):
         rclpy_args=args,
         node_args=[
             ["provizio_dds_domain_id", DDS_DOMAIN_ID],
-            ["snr_threshold", SNR_THRESHOLD],
+            ["snr_threshold", snr_threshold],
         ],
     )
 

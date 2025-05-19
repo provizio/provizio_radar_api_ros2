@@ -91,28 +91,10 @@ class TestNode(test_framework.Node):
             # Don't overwrite the result
             return
 
-        message_age = test_framework.message_age(msg.header)
-        print(
-            f"{TEST_NAME}: Received message of age = {message_age} sec of type {type(msg).__name__}"
-        )
-        if message_age > MAX_MESSAGE_AGE:
-            print(
-                f"{TEST_NAME}: Message delivery took too long: {message_age} sec",
-                flush=True,
-            )
+        self.check_age(msg.header, MAX_MESSAGE_AGE)
 
-            self.success = False
-            self.done = True
-
-        if instance_message and msg.polygon.id != EXPECTED_POLYGON_ID:
-            print(
-                f"{TEST_NAME}: polygon id = {msg.polygon.id} received, {EXPECTED_POLYGON_ID} was expected",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
-            return
+        if instance_message:
+            self.check_value("msg.polygon.id", msg.polygon.id, EXPECTED_POLYGON_ID)
 
         polygon_points = [
             [it.x, it.y, it.z]
@@ -120,27 +102,19 @@ class TestNode(test_framework.Node):
                 msg.polygon.polygon.points if instance_message else msg.polygon.points
             )
         ]
-        if polygon_points != EXPECTED_POINTS:
-            print(
-                f"{TEST_NAME}: polygon points = {polygon_points} received, {EXPECTED_POINTS} was expected",
-                flush=True,
-            )
+        self.check_value("polygon_points", polygon_points, EXPECTED_POINTS)
+        
+        if not self.done:
+            if instance_message:
+                self.successful_messages_instance_stamped += 1
+            else:
+                self.successful_messages_stamped += 1
 
-            self.success = False
-            self.done = True
-            return
-
-        if instance_message:
-            self.successful_messages_instance_stamped += 1
-        else:
-            self.successful_messages_stamped += 1
-
-        if self.successful_messages_stamped >= NUM_MESSAGES_NEEDED and (
-            not HAS_POLYGON_INSTANCE_STAMPED
-            or self.successful_messages_instance_stamped >= NUM_MESSAGES_NEEDED
-        ):
-            self.success = True
-            self.done = True
+            if self.successful_messages_stamped >= NUM_MESSAGES_NEEDED and (
+                not HAS_POLYGON_INSTANCE_STAMPED
+                or self.successful_messages_instance_stamped >= NUM_MESSAGES_NEEDED
+            ):
+                self.succeed()
 
 
 def main(source: FreespaceSource, args=None):

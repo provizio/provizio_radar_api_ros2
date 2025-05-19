@@ -55,52 +55,19 @@ class TestNode(test_framework.Node):
             # Don't overwrite the result
             return
 
-        message_age = test_framework.message_age(msg.header)
-        print(f"{TEST_NAME}: Received message of age = {message_age} sec")
-        if message_age > MAX_MESSAGE_AGE:
-            print(
-                f"{TEST_NAME}: Message delivery took too long: {message_age} sec",
-                flush=True,
+        self.check_age(msg.header, MAX_MESSAGE_AGE)
+
+        self.check_value("msg.serial_number", msg.serial_number, EXPECTED_SERIAL_NUMBER)
+        self.check_value("msg.current_range", msg.current_range, EXPECTED_CURRENT_RANGE)
+
+        for range_index in range(len(EXPECTED_SUPPORTED_RANGES)):
+            self.check_value(
+                f"msg.supported_ranges[{range_index}]",
+                msg.supported_ranges[range_index],
+                EXPECTED_SUPPORTED_RANGES[range_index],
             )
 
-            self.success = False
-            self.done = True
-
-        if msg.serial_number != EXPECTED_SERIAL_NUMBER:
-            print(
-                f"{TEST_NAME}: serial_number = {msg.serial_number} received, {EXPECTED_SERIAL_NUMBER} was expected",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
-            return
-
-        if msg.current_range != EXPECTED_CURRENT_RANGE:
-            print(
-                f"{TEST_NAME}: current_range = {msg.current_range} received, {EXPECTED_CURRENT_RANGE} was expected",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
-            return
-
-        for i in range(len(EXPECTED_SUPPORTED_RANGES)):
-            if msg.supported_ranges[i] != EXPECTED_SUPPORTED_RANGES[i]:
-                print(
-                    f"{TEST_NAME}: supported_range[{i}] = {msg.supported_ranges[i]} received, {EXPECTED_SUPPORTED_RANGES[i]} was expected",
-                    flush=True,
-                )
-
-                self.success = False
-                self.done = True
-                return
-
-        self.successful_messages += 1
-        if self.successful_messages >= NUM_MESSAGES_NEEDED:
-            self.success = True
-            self.done = True
+        self.message_checked(NUM_MESSAGES_NEEDED)
 
 
 def main(args=None):

@@ -25,7 +25,6 @@ import sensor_msgs_py.point_cloud2 as pc2
 import subprocess
 import time
 from collections import namedtuple
-from collections.abc import Iterable
 from typing import Iterable, List, NamedTuple, Optional
 import synthetic_data_udp
 import traceback
@@ -52,7 +51,7 @@ class Node(rclpy.node.Node):
 
     def fail(self):
         traceback.print_stack()
-        
+
         if self.done:
             if self.success:
                 raise RuntimeError("Can't fail a test after it succeeded")
@@ -102,8 +101,8 @@ class Node(rclpy.node.Node):
             return False
         return True
 
-    def check_value(self, value_name, actual, expected):
-        if is_iterable(expected):
+    def check_value(self, value_name, actual, expected, multiple_options: bool = False):
+        if multiple_options:
             matches = False
             for expected_val in expected:
                 if actual == expected_val:
@@ -114,7 +113,7 @@ class Node(rclpy.node.Node):
 
         if not matches:
             print(
-                f"{self.test_name}: {value_name} = {actual} received, while {'one of ' if is_iterable(expected) else ''}{expected} was expected",
+                f"{self.test_name}: {value_name} = {actual} received, while {'one of ' if multiple_options else ''}{expected} was expected",
                 flush=True,
             )
             self.fail()
@@ -366,7 +365,3 @@ def message_age(header):
     header_timestamp = header.stamp.sec * ns_in_sec + header.stamp.nanosec
     timestamp_now = time.time_ns()
     return float(timestamp_now - header_timestamp) / ns_in_sec
-
-
-def is_iterable(var):
-    return isinstance(var, Iterable) and not isinstance(var, (str, bytes))

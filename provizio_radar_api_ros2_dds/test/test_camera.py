@@ -54,75 +54,16 @@ class TestNode(test_framework.Node):
             # Don't overwrite the result
             return
 
-        message_age = test_framework.message_age(msg.header)
-        print(f"{TEST_NAME}: Received message of age = {message_age} sec")
-        if message_age > MAX_MESSAGE_AGE:
-            print(
-                f"{TEST_NAME}: Message delivery took too long: {message_age} sec",
-                flush=True,
-            )
+        self.check_age(msg.header, MAX_MESSAGE_AGE)
 
-            self.success = False
-            self.done = True
+        self.check_value("msg.encoding", msg.encoding, EXPECTED_ENCODING)
+        self.check_value("msg.width", msg.width, EXPECTED_WIDTH)
+        self.check_value("msg.height", msg.height, EXPECTED_HEIGHT)
+        self.check_value("msg.step", msg.step, EXPECTED_STEP)
+        self.check_value("msg.is_bigendian", msg.is_bigendian, EXPECTED_IS_BIGENDIAN)
+        self.check_value("msg.data", msg.data, EXPECTED_DATA)
 
-        if msg.encoding != EXPECTED_ENCODING:
-            print(
-                f"{TEST_NAME}: encoding = {msg.encoding} received while {EXPECTED_ENCODING} was expected",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
-
-        if msg.width != EXPECTED_WIDTH:
-            print(
-                f"{TEST_NAME}: width = {msg.width} received while {EXPECTED_WIDTH} was expected",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
-
-        if msg.height != EXPECTED_HEIGHT:
-            print(
-                f"{TEST_NAME}: height = {msg.height} received while {EXPECTED_HEIGHT} was expected",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
-
-        if msg.step != EXPECTED_STEP:
-            print(
-                f"{TEST_NAME}: step = {msg.step} received while {EXPECTED_STEP} was expected",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
-
-        if msg.is_bigendian != EXPECTED_IS_BIGENDIAN:
-            print(
-                f"{TEST_NAME}: is_bigendian = {msg.is_bigendian} received while {EXPECTED_IS_BIGENDIAN} was expected",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
-
-        if msg.data != EXPECTED_DATA:
-            print(
-                f"{TEST_NAME}: data = {msg.data} received while {EXPECTED_DATA} was expected",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
-
-        self.successful_messages += 1
-        if self.successful_messages >= NUM_MESSAGES_NEEDED:
-            self.success = True
-            self.done = True
+        self.message_checked(NUM_MESSAGES_NEEDED)
 
 
 def main(args=None):

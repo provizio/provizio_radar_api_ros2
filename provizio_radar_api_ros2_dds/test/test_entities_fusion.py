@@ -50,32 +50,17 @@ class TestNode(test_framework.Node):
             # Don't overwrite the result
             return
 
-        message_age = test_framework.message_age(msg.header)
-        print(f"{TEST_NAME}: Received message of age = {message_age} sec")
-        if message_age > MAX_MESSAGE_AGE:
-            print(
-                f"{TEST_NAME}: Message delivery took too long: {message_age} sec",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
+        self.check_age(msg.header, MAX_MESSAGE_AGE)
 
         entities = test_framework.read_points_list(msg, tuple_name="Entity")
-        if str(entities) != EXPECTED_ENTITIES and str(entities) != EXPECTED_ENTITIES_NP:
-            print(
-                f"{TEST_NAME}: {entities} received, {EXPECTED_ENTITIES} was expected",
-                flush=True,
-            )
+        self.check_value(
+            "entities",
+            str(entities),
+            [EXPECTED_ENTITIES, EXPECTED_ENTITIES_NP],
+            multiple_options=True,
+        )
 
-            self.success = False
-            self.done = True
-            return
-
-        self.successful_messages += 1
-        if self.successful_messages >= NUM_MESSAGES_NEEDED:
-            self.success = True
-            self.done = True
+        self.message_checked(NUM_MESSAGES_NEEDED)
 
 
 def main(args=None):

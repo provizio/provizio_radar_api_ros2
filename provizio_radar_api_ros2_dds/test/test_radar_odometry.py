@@ -129,101 +129,56 @@ class TestNode(test_framework.Node):
             # Don't overwrite the result
             return
 
-        message_age = test_framework.message_age(msg.header)
-        print(f"{test_name}: Received message of age = {message_age} sec")
-        if message_age > MAX_MESSAGE_AGE:
-            print(
-                f"{test_name}: Message delivery took too long: {message_age} sec",
-                flush=True,
-            )
+        self.check_age(msg.header, MAX_MESSAGE_AGE)
 
-            self.success = False
-            self.done = True
+        self.check_value(
+            "msg.child_frame_id", msg.child_frame_id, expected_child_frame_id
+        )
+        self.check_value(
+            "msg.pose.covariance", msg.pose.covariance, expected_pose_covariance
+        )
+        self.check_value(
+            "pose.pose.position",
+            [
+                msg.pose.pose.position.x,
+                msg.pose.pose.position.y,
+                msg.pose.pose.position.z,
+            ],
+            expected_position,
+        )
+        self.check_value(
+            "pose.pose.orientation",
+            [
+                msg.pose.pose.orientation.x,
+                msg.pose.pose.orientation.y,
+                msg.pose.pose.orientation.z,
+                msg.pose.pose.orientation.w,
+            ],
+            expected_orientation,
+        )
+        self.check_value(
+            "msg.twist.covariance", msg.twist.covariance, expected_twist_covariance
+        )
+        self.check_value(
+            "twist.twist.angular",
+            [
+                msg.twist.twist.angular.x,
+                msg.twist.twist.angular.y,
+                msg.twist.twist.angular.z,
+            ],
+            expected_angular_twist,
+        )
+        self.check_value(
+            "twist.twist.linear",
+            [
+                msg.twist.twist.linear.x,
+                msg.twist.twist.linear.y,
+                msg.twist.twist.linear.z,
+            ],
+            expected_linear_twist,
+        )
 
-        if msg.child_frame_id != expected_child_frame_id:
-            print(
-                f"{test_name}: child_frame_id = {msg.child_frame_id} received while {expected_child_frame_id} was expected",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
-
-        if (msg.pose.covariance != expected_pose_covariance).any():
-            print(
-                f"{test_name}: pose.covariance = {msg.pose.covariance} received while {expected_pose_covariance} was expected",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
-
-        if [
-            msg.pose.pose.position.x,
-            msg.pose.pose.position.y,
-            msg.pose.pose.position.z,
-        ] != expected_position:
-            print(
-                f"{test_name}: pose.pose.position = {[msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.position.z]} received while {expected_position} was expected",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
-
-        if [
-            msg.pose.pose.orientation.x,
-            msg.pose.pose.orientation.y,
-            msg.pose.pose.orientation.z,
-            msg.pose.pose.orientation.w,
-        ] != expected_orientation:
-            print(
-                f"{test_name}: pose.pose.orientation = {[msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w]} received while {expected_orientation} was expected",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
-
-        if (msg.twist.covariance != expected_twist_covariance).any():
-            print(
-                f"{test_name}: twist.covariance = {msg.pose.covariance} received while {expected_twist_covariance} was expected",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
-
-        if [
-            msg.twist.twist.angular.x,
-            msg.twist.twist.angular.y,
-            msg.twist.twist.angular.z,
-        ] != expected_angular_twist:
-            print(
-                f"{test_name}: twist.twist.angular = {[msg.twist.twist.angular.x, msg.twist.twist.angular.y, msg.twist.twist.angular.z]} received while {expected_angular_twist} was expected",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
-
-        if [
-            msg.twist.twist.linear.x,
-            msg.twist.twist.linear.y,
-            msg.twist.twist.linear.z,
-        ] != expected_linear_twist:
-            print(
-                f"{test_name}: twist.twist.linear = {[msg.twist.twist.linear.x, msg.twist.twist.linear.y, msg.twist.twist.linear.z]} received while {expected_linear_twist} was expected",
-                flush=True,
-            )
-
-            self.success = False
-            self.done = True
-
-        self.successful_messages += 1
-        if self.successful_messages >= NUM_MESSAGES_NEEDED:
-            self.success = True
-            self.done = True
+        self.message_checked(NUM_MESSAGES_NEEDED)
 
 
 def main(args=None):

@@ -25,8 +25,9 @@ RADAR_POSITION_ID = 12
 EXPECTED_POINTS = "[Point(x=1.0, y=2.0, z=3.0, radar_relative_radial_velocity=4.0, signal_to_noise_ratio=5.0, ground_relative_radial_velocity=nan)]"
 EXPECTED_POINTS_NP = "[Point(x=np.float32(1.0), y=np.float32(2.0), z=np.float32(3.0), radar_relative_radial_velocity=np.float32(4.0), signal_to_noise_ratio=np.float32(5.0), ground_relative_radial_velocity=np.float32(nan))]"
 NUM_MESSAGES_NEEDED = 10
-SNR_THRESHOLD = 2.0
 MAX_SNR = 5.0
+
+snr_threshold = 2.0
 
 
 class TestNode(test_framework.Node):
@@ -55,15 +56,20 @@ class TestNode(test_framework.Node):
         self.check_age(msg.header, MAX_MESSAGE_AGE)
 
         points = test_framework.read_points_list(msg)
-        self.check_value("points", str(points), [EXPECTED_POINTS, EXPECTED_POINTS_NP] if SNR_THRESHOLD <= MAX_SNR else "[]")
+        self.check_value(
+            "points",
+            str(points),
+            [EXPECTED_POINTS, EXPECTED_POINTS_NP] if snr_threshold <= MAX_SNR else "[]",
+            multiple_options=(snr_threshold <= MAX_SNR),
+        )
 
         self.message_checked(NUM_MESSAGES_NEEDED)
 
 
 def main(high_snr_threshold=False, args=None):
-    global SNR_THRESHOLD
+    global snr_threshold
     if high_snr_threshold:
-        SNR_THRESHOLD = 100.0
+        snr_threshold = 100.0
 
     return test_framework.run(
         test_name=TEST_NAME,
@@ -77,7 +83,7 @@ def main(high_snr_threshold=False, args=None):
         rclpy_args=args,
         node_args=[
             ["point_clouds_udp_port", RADAR_PC_PORT_NUMBER],
-            ["snr_threshold", SNR_THRESHOLD],
+            ["snr_threshold", snr_threshold],
         ],
     )
 
