@@ -309,13 +309,13 @@ def run(
             if len(nodes) == 0:
                 print(f"{test_name}: No nodes found!")
                 return 1
-            for i in nodes:
+            for node in nodes:
                 result = _do_run(
                     test_name=test_name,
                     synthetic_data_dds_args=synthetic_data_dds_args,
                     node_type=node_type,
                     timeout_sec=timeout_sec,
-                    lifecycle_node=i,
+                    lifecycle_node=node,
                     node_args=node_args,
                     rclpy_args=rclpy_args,
                 )
