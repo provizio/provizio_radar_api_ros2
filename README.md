@@ -29,13 +29,13 @@ This ROS 2 driver then can be leveraged to overcome all of these limitations. In
 1. [Create a ROS 2 workspace](https://docs.ros.org/en/rolling/Tutorials/Beginner-Client-Libraries/Creating-A-Workspace/Creating-A-Workspace.html)
 2. In its `src` directory, clone `provizio_radar_api_ros2`.
 3. [Source the ROS 2 environment](https://docs.ros.org/en/rolling/Tutorials/Beginner-Client-Libraries/Creating-A-Workspace/Creating-A-Workspace.html#source-ros-2-environment)
-4. From the root of your ROS 2 workspace, build as:
+4. From the root of your ROS 2 workspace, build as (it may take a few minutes):
 
    ```Bash
    export PROVIZIO_RADAR_API="dds" # or "udp"
    export BUILD_SIMPLE_NODE="ON" # or "OFF"
    export BUILD_LIFECYCLE_NODE="ON" # or "OFF"
-   colcon build --symlink-install --cmake-args -DDISABLE_PROVIZIO_CODING_STANDARDS_CHECKS=OFF -DPROVIZIO_RADAR_API=${PROVIZIO_RADAR_API} -DBUILD_SIMPLE_NODE=${BUILD_SIMPLE_NODE} -DBUILD_LIFECYCLE_NODE=${BUILD_LIFECYCLE_NODE}
+   colcon build --symlink-install --cmake-args -DPROVIZIO_RADAR_API=${PROVIZIO_RADAR_API} -DBUILD_SIMPLE_NODE=${BUILD_SIMPLE_NODE} -DBUILD_LIFECYCLE_NODE=${BUILD_LIFECYCLE_NODE} -DDISABLE_PROVIZIO_CODING_STANDARDS_CHECKS=ON -DBUILD_TESTING=OFF
    ```
 
 ### Running the built nodes

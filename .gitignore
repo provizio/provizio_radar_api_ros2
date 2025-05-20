@@ -4,3 +4,4 @@ build/
 .clang-format
 .clang-tidy
 CMakeUserPresets.json
+__pycache__

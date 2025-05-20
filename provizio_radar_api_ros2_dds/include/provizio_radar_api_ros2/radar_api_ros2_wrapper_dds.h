@@ -286,8 +286,8 @@ namespace provizio
 
         if (node.get_parameter(serve_set_radar_range_param).as_bool())
         {
-            dds_set_radar_range_publisher = make_dds_publisher_set_radar_range(
-                dds_domain_participant, node.get_parameter(set_radar_range_ros2_service_name_param).as_string());
+            dds_set_radar_range_publisher =
+                make_dds_publisher_set_radar_range(dds_domain_participant, set_radar_range_dds_topic_name);
             stop_ros2_set_radar_range_service = false;
             ros2_set_radar_range_service = node.template create_service<provizio_radar_api_ros2::srv::SetRadarRange>(
                 node.get_parameter(set_radar_range_ros2_service_name_param).as_string(),
@@ -548,6 +548,12 @@ namespace provizio
         }
 
         response->actual_range = get_current_radar_range(frame_id, serial_number);
+        if (response->actual_range != request->target_range)
+        {
+            RCLCPP_WARN(node.get_logger(), "Failed to change the radar range of %s to %d. The radar range stays %d.",
+                        request->header.frame_id.c_str(), static_cast<int>(request->target_range),
+                        static_cast<int>(response->actual_range));
+        }
     }
 } // namespace provizio
 
