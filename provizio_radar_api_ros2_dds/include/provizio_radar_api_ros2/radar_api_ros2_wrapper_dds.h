@@ -41,9 +41,10 @@
 
 namespace provizio
 {
-    template <typename node_t> class radar_api_ros2_wrapper_dds
+    template <typename node_t>
+    class radar_api_ros2_wrapper_dds
     {
-      public:
+    public:
         radar_api_ros2_wrapper_dds(node_t &node, rclcpp::Executor & /*unused*/) : node(node)
         {
             // Declare all of the Node parameters
@@ -88,7 +89,7 @@ namespace provizio
         bool activate();
         bool deactivate();
 
-      private:
+    private:
         // Functions
         static void on_radar_point_cloud(void *context, contained_pointcloud2 message);
         static void on_radar_point_cloud_sr(void *context, contained_pointcloud2 message);
@@ -103,9 +104,11 @@ namespace provizio
         void on_set_radar_range_request(
             const std::shared_ptr<provizio_radar_api_ros2::srv::SetRadarRange::Request> request,
             std::shared_ptr<provizio_radar_api_ros2::srv::SetRadarRange::Response> response);
+        bool filter_by_frame_id(const std::string &message_frame_id);
 
         // Variables
         node_t &node;
+        std::string frame_id{default_frame_id};
         float snr_threshold{default_snr_threshold};
         std::shared_ptr<void> dds_domain_participant;
         std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> ros2_radar_pc_publisher;
@@ -146,7 +149,8 @@ namespace provizio
         std::unordered_map<std::string, std::int8_t> current_radar_ranges_by_serial_number;
     };
 
-    template <typename node_t> bool radar_api_ros2_wrapper_dds<node_t>::activate()
+    template <typename node_t>
+    bool radar_api_ros2_wrapper_dds<node_t>::activate()
     {
         if (dds_domain_participant != nullptr)
         {
@@ -154,7 +158,10 @@ namespace provizio
             return false;
         }
 
+        frame_id = node.get_parameter(frame_id_param).as_string();
         snr_threshold = static_cast<float>(node.get_parameter(snr_threshold_param).as_double());
+        RCLCPP_DEBUG(node.get_logger(), "Running with frame_id %s, snr_threshold=%f",
+                     (frame_id.empty() ? "unrestricted" : frame_id.c_str()), snr_threshold);
 
         // dds_domain_participant
         dds_domain_participant =
@@ -298,7 +305,8 @@ namespace provizio
         return true;
     }
 
-    template <typename node_t> bool radar_api_ros2_wrapper_dds<node_t>::deactivate()
+    template <typename node_t>
+    bool radar_api_ros2_wrapper_dds<node_t>::deactivate()
     {
         if (dds_domain_participant == nullptr)
         {
@@ -352,6 +360,11 @@ namespace provizio
     void radar_api_ros2_wrapper_dds<node_t>::on_radar_point_cloud(void *context, contained_pointcloud2 message)
     {
         auto &self = *static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context);
+        if (!self.filter_by_frame_id(message.header.frame_id))
+        {
+            return;
+        }
+
         auto publisher =
             self.ros2_radar_pc_publisher; // To make sure it can't be destroyed by another thread during this call
         if (publisher != nullptr)
@@ -364,6 +377,11 @@ namespace provizio
     void radar_api_ros2_wrapper_dds<node_t>::on_radar_point_cloud_sr(void *context, contained_pointcloud2 message)
     {
         auto &self = *static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context);
+        if (!self.filter_by_frame_id(message.header.frame_id))
+        {
+            return;
+        }
+
         auto publisher = self.ros2_radar_pc_sr_publisher; // To make sure it can't be destroyed by another thread
                                                           // during this call
         if (publisher != nullptr)
@@ -375,9 +393,14 @@ namespace provizio
     template <typename node_t>
     void radar_api_ros2_wrapper_dds<node_t>::on_entities_radar(void *context, contained_pointcloud2 message)
     {
-        auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
-                             ->ros2_entities_radar_publisher; // To make sure it can't be destroyed by another
-                                                              // thread during this call
+        auto &self = *static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context);
+        if (!self.filter_by_frame_id(message.header.frame_id))
+        {
+            return;
+        }
+
+        auto publisher = self.ros2_entities_radar_publisher; // To make sure it can't be destroyed by another
+                                                             // thread during this call
         if (publisher != nullptr)
         {
             publisher->publish(to_ros2_pointcloud2(std::move(message)));
@@ -387,9 +410,14 @@ namespace provizio
     template <typename node_t>
     void radar_api_ros2_wrapper_dds<node_t>::on_entities_camera(void *context, contained_pointcloud2 message)
     {
-        auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
-                             ->ros2_entities_camera_publisher; // To make sure it can't be destroyed by another
-                                                               // thread during this call
+        auto &self = *static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context);
+        if (!self.filter_by_frame_id(message.header.frame_id))
+        {
+            return;
+        }
+
+        auto publisher = self.ros2_entities_camera_publisher; // To make sure it can't be destroyed by another
+                                                              // thread during this call
         if (publisher != nullptr)
         {
             publisher->publish(to_ros2_pointcloud2(std::move(message)));
@@ -399,9 +427,14 @@ namespace provizio
     template <typename node_t>
     void radar_api_ros2_wrapper_dds<node_t>::on_entities_fusion(void *context, contained_pointcloud2 message)
     {
-        auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
-                             ->ros2_entities_fusion_publisher; // To make sure it can't be destroyed by another
-                                                               // thread during this call
+        auto &self = *static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context);
+        if (!self.filter_by_frame_id(message.header.frame_id))
+        {
+            return;
+        }
+
+        auto publisher = self.ros2_entities_fusion_publisher; // To make sure it can't be destroyed by another
+                                                              // thread during this call
         if (publisher != nullptr)
         {
             publisher->publish(to_ros2_pointcloud2(std::move(message)));
@@ -411,9 +444,14 @@ namespace provizio
     template <typename node_t>
     void radar_api_ros2_wrapper_dds<node_t>::on_radar_odometry(void *context, contained_odometry message)
     {
-        auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
-                             ->ros2_radar_odometry_publisher; // To make sure it can't be destroyed by another
-                                                              // thread during this call
+        auto &self = *static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context);
+        if (!self.filter_by_frame_id(message.header.frame_id))
+        {
+            return;
+        }
+
+        auto publisher = self.ros2_radar_odometry_publisher; // To make sure it can't be destroyed by another
+                                                             // thread during this call
         if (publisher != nullptr)
         {
             publisher->publish(to_ros2_odometry(std::move(message)));
@@ -423,9 +461,14 @@ namespace provizio
     template <typename node_t>
     void radar_api_ros2_wrapper_dds<node_t>::on_camera(void *context, contained_image message)
     {
-        auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
-                             ->ros2_camera_publisher; // To make sure it can't be destroyed by another thread
-                                                      // during this call
+        auto &self = *static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context);
+        if (!self.filter_by_frame_id(message.header.frame_id))
+        {
+            return;
+        }
+
+        auto publisher = self.ros2_camera_publisher; // To make sure it can't be destroyed by another thread
+                                                     // during this call
         if (publisher != nullptr)
         {
             publisher->publish(to_ros2_image(std::move(message)));
@@ -436,9 +479,14 @@ namespace provizio
     void radar_api_ros2_wrapper_dds<node_t>::on_radar_freespace(void *context,
                                                                 contained_polygon_instance_stamped message)
     {
-        auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
-                             ->ros2_radar_freespace_publisher; // To make sure it can't be destroyed by another
-                                                               // thread during this call
+        auto &self = *static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context);
+        if (!self.filter_by_frame_id(message.header.frame_id))
+        {
+            return;
+        }
+
+        auto publisher = self.ros2_radar_freespace_publisher; // To make sure it can't be destroyed by another
+                                                              // thread during this call
         if (publisher != nullptr)
         {
             publisher->publish(to_ros2_polygon_stamped(message));
@@ -458,9 +506,14 @@ namespace provizio
     void radar_api_ros2_wrapper_dds<node_t>::on_camera_freespace(void *context,
                                                                  contained_polygon_instance_stamped message)
     {
-        auto publisher = static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context)
-                             ->ros2_camera_freespace_publisher; // To make sure it can't be destroyed by another
-                                                                // thread during this call
+        auto &self = *static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context);
+        if (!self.filter_by_frame_id(message.header.frame_id))
+        {
+            return;
+        }
+
+        auto publisher = self.ros2_camera_freespace_publisher; // To make sure it can't be destroyed by another
+                                                               // thread during this call
         if (publisher != nullptr)
         {
             publisher->publish(to_ros2_polygon_stamped(message));
@@ -480,6 +533,11 @@ namespace provizio
     void radar_api_ros2_wrapper_dds<node_t>::on_radar_info(void *context, contained_radar_info message)
     {
         auto &self = *static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context);
+        if (!self.filter_by_frame_id(message.header.frame_id))
+        {
+            return;
+        }
+
         {
             std::lock_guard<std::mutex> lock{self.current_radar_ranges_mutex};
             self.current_radar_ranges_by_frame_id[message.header.frame_id] = message.current_range;
@@ -505,7 +563,8 @@ namespace provizio
     {
         std::unique_lock<std::mutex> lock{current_radar_ranges_mutex};
 
-        auto get_current_radar_range = [this](const std::string &frame_id, const std::string &serial_number) {
+        auto get_current_radar_range = [this](const std::string &frame_id, const std::string &serial_number)
+        {
             if (!serial_number.empty())
             {
                 auto it = current_radar_ranges_by_serial_number.find(serial_number);
@@ -525,7 +584,13 @@ namespace provizio
             return it->second;
         };
 
-        const auto &frame_id = request->header.frame_id;
+        if (!this->frame_id.empty() && !request->header.frame_id.empty() && request->header.frame_id != this->frame_id)
+        {
+            RCLCPP_WARN(node.get_logger(),
+                        "The node's frame_id %s doesn't match the request's (%s)! Assuming the node's one correct",
+                        frame_id.c_str(), request->header.frame_id.c_str());
+        }
+        const auto &frame_id = !this->frame_id.empty() ? this->frame_id : request->header.frame_id;
         const auto &serial_number = request->serial_number;
 
         if (get_current_radar_range(frame_id, serial_number) == request->target_range)
@@ -537,10 +602,9 @@ namespace provizio
 
         if (dds_publish_set_radar_range(dds_set_radar_range_publisher, to_contained_set_radar_range(*request)))
         {
-            current_radar_ranges_cv.wait_for(lock, max_time_to_set_radar_range, [&]() {
-                return stop_ros2_set_radar_range_service ||
-                       get_current_radar_range(frame_id, serial_number) == request->target_range;
-            });
+            current_radar_ranges_cv.wait_for(lock, max_time_to_set_radar_range, [&]()
+                                             { return stop_ros2_set_radar_range_service ||
+                                                      get_current_radar_range(frame_id, serial_number) == request->target_range; });
         }
         else
         {
@@ -554,6 +618,12 @@ namespace provizio
                         request->header.frame_id.c_str(), static_cast<int>(request->target_range),
                         static_cast<int>(response->actual_range));
         }
+    }
+
+    template <typename node_t>
+    bool radar_api_ros2_wrapper_dds<node_t>::filter_by_frame_id(const std::string &message_frame_id)
+    {
+        return this->frame_id.empty() || this->frame_id == message_frame_id;
     }
 } // namespace provizio
 

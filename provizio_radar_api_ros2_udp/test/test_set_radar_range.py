@@ -256,6 +256,8 @@ def main(args=None):
             ["set_range_udp_port", SET_RANGE_PORT_NUMBER],
             ["set_range_ip_address", SET_RANGE_IP_ADDRESS],
         ],
+        frame_id_filters_success=[None, f"provizio_radar_{RADAR_POSITION_ID}"],
+        # Pointless testing for a failure on mismatched frame_id, as the service doesn't filter out received requests by design
     )
 
 

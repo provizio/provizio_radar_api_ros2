@@ -35,6 +35,7 @@ namespace provizio
     } // namespace detail
 
     // NOLINTBEGIN: These global constants don't throw on construction
+    const std::string default_frame_id{};
     const std::string default_radar_pc_ros2_topic_name = "/provizio/radar_point_cloud";
     const std::string default_radar_pc_sr_ros2_topic_name = "/provizio/radar_point_cloud_sr";
     const std::string default_entities_radar_ros2_topic_name = "/provizio/entities/radar";
@@ -54,6 +55,7 @@ namespace provizio
     const std::string radar_pc_ros2_topic_name_param = "radar_pc_topic";
     const std::string radar_info_ros2_topic_name_param = "radar_info_topic";
     const std::string set_radar_range_ros2_service_name_param = "set_radar_range_service";
+    const std::string frame_id_param = "frame_id";
     const std::string snr_threshold_param = "snr_threshold";
     const rclcpp::QoS default_ros2_qos{10};
     const bool is_host_big_endian = detail::is_host_big_endian();

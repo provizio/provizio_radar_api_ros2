@@ -85,6 +85,8 @@ def main(high_snr_threshold=False, args=None):
             ["provizio_dds_domain_id", DDS_DOMAIN_ID],
             ["snr_threshold", snr_threshold],
         ],
+        frame_id_filters_success=[None, FRAME_ID],
+        frame_id_filters_failure=[FRAME_ID + "_mismatch"],
     )
 
 

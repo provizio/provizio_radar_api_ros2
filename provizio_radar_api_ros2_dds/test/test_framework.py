@@ -147,6 +147,8 @@ def _do_run(
     lifecycle_node=False,
     node_args=None,
     rclpy_args=None,
+    frame_id_filter=None,
+    failure_expected=False,
 ):
     # Init rclpy
     rclpy.init(args=rclpy_args)
@@ -156,7 +158,9 @@ def _do_run(
         "provizio_radar_lifecycle_node" if lifecycle_node else "provizio_radar_node"
     )
 
-    print(f"Running test {test_name} with {node_name} (DDS API)...")
+    print(
+        f"Running test {test_name} with {node_name} and frame_id_filter={frame_id_filter} (DDS API)..."
+    )
 
     node_cmd = [
         "ros2",
@@ -169,6 +173,11 @@ def _do_run(
         for param in node_args:
             node_cmd.append("-p")
             node_cmd.append(f"{param[0]}:={param[1]}")
+    if frame_id_filter:
+        if not node_args:
+            node_cmd.append("--ros-args")
+        node_cmd.append("-p")
+        node_cmd.append(f"frame_id:={frame_id_filter}")
 
     synthetic_data_cmd = ["python3", "synthetic_data_dds.py"] + (
         synthetic_data_dds_args if synthetic_data_dds_args is not None else []
@@ -262,15 +271,17 @@ def _do_run(
             driver_process.wait()
 
     # Report the results
-    if not test_node.success:
-        print(f"{test_name}: Failure. {test_node.total_messages} messages received.\n")
+    if test_node.success == failure_expected:
+        print(
+            f"{test_name}: Failure with frame_id_filter={frame_id_filter}. {test_node.total_messages} messages received.\n"
+        )
         return 1
 
-    print(f"{test_name}: Success!\n")
+    print(f"{test_name}: Success with frame_id_filter={frame_id_filter}!\n")
     return 0
 
 
-def run(
+def _run_with_frame_id_filter(
     test_name,
     synthetic_data_dds_args,
     node_type,
@@ -278,6 +289,8 @@ def run(
     run_nodes=RunNodes.ALL_AVAILABLE,
     node_args=None,
     rclpy_args=None,
+    frame_id_filter=None,
+    failure_expected=False,
 ):
     match run_nodes:
         case RunNodes.BOTH:
@@ -290,6 +303,8 @@ def run(
                     lifecycle_node=i,
                     node_args=node_args,
                     rclpy_args=rclpy_args,
+                    frame_id_filter=frame_id_filter,
+                    failure_expected=failure_expected,
                 )
                 if result != 0:
                     return result
@@ -318,6 +333,8 @@ def run(
                     lifecycle_node=node,
                     node_args=node_args,
                     rclpy_args=rclpy_args,
+                    frame_id_filter=frame_id_filter,
+                    failure_expected=failure_expected,
                 )
                 if result != 0:
                     return result
@@ -332,6 +349,8 @@ def run(
                 lifecycle_node=False,
                 node_args=node_args,
                 rclpy_args=rclpy_args,
+                frame_id_filter=frame_id_filter,
+                failure_expected=failure_expected,
             )
 
         case RunNodes.LIFECYCLE:
@@ -343,7 +362,51 @@ def run(
                 lifecycle_node=True,
                 node_args=node_args,
                 rclpy_args=rclpy_args,
+                frame_id_filter=frame_id_filter,
+                failure_expected=failure_expected,
             )
+
+
+def run(
+    test_name,
+    synthetic_data_dds_args,
+    node_type,
+    timeout_sec,
+    run_nodes=RunNodes.ALL_AVAILABLE,
+    node_args=None,
+    rclpy_args=None,
+    frame_id_filters_success=[],
+    frame_id_filters_failure=[],
+):
+    if len(frame_id_filters_success) + len(frame_id_filters_failure) > 0:
+        for frame_id_filters, failure_expected in zip(
+            [frame_id_filters_success, frame_id_filters_failure], [False, True]
+        ):
+            for frame_id_filter in frame_id_filters:
+                return_code = _run_with_frame_id_filter(
+                    test_name=test_name,
+                    synthetic_data_dds_args=synthetic_data_dds_args,
+                    node_type=node_type,
+                    timeout_sec=timeout_sec,
+                    run_nodes=run_nodes,
+                    node_args=node_args,
+                    rclpy_args=rclpy_args,
+                    frame_id_filter=frame_id_filter,
+                    failure_expected=failure_expected,
+                )
+                if return_code != 0:
+                    return return_code
+        return 0  # All good!
+    else:
+        return _run_with_frame_id_filter(
+            test_name=test_name,
+            synthetic_data_dds_args=synthetic_data_dds_args,
+            node_type=node_type,
+            timeout_sec=timeout_sec,
+            run_nodes=run_nodes,
+            node_args=node_args,
+            rclpy_args=rclpy_args,
+        )
 
 
 def read_points_list(

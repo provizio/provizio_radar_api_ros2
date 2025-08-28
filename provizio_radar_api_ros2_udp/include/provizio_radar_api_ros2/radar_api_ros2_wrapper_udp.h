@@ -67,10 +67,12 @@ namespace provizio
         void on_set_radar_range_request(
             const std::shared_ptr<provizio_radar_api_ros2::srv::SetRadarRange::Request> request,
             std::shared_ptr<provizio_radar_api_ros2::srv::SetRadarRange::Response> response);
+        bool filter_by_frame_id(const std::string &message_frame_id);
 
         // Variables
         node_t &node;
         rclcpp::Executor &executor;
+        std::string frame_id{default_frame_id};
         float snr_threshold{default_snr_threshold};
         std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> ros2_radar_pc_publisher;
         std::shared_ptr<rclcpp::Publisher<provizio_radar_api_ros2::msg::RadarInfo>> ros2_radar_info_publisher;
@@ -99,7 +101,10 @@ namespace provizio
         }
 
         make_sure_sockets_initialized();
+        frame_id = node.get_parameter(frame_id_param).as_string();
         snr_threshold = static_cast<float>(node.get_parameter(snr_threshold_param).as_double());
+        RCLCPP_DEBUG(node.get_logger(), "Running with frame_id %s, snr_threshold=%f",
+                     (frame_id.empty() ? "unrestricted" : frame_id.c_str()), snr_threshold);
 
         // Create ROS2 publishers
         if (node.get_parameter(publish_radar_pc_param).as_bool())
@@ -213,10 +218,17 @@ namespace provizio
 
         auto &self = *static_cast<radar_api_ros2_wrapper_udp<node_t> *>(context->user_data);
 
+        const auto frame_id =
+            radar_position_id_to_frame_id(static_cast<provizio_radar_position>(point_cloud->radar_position_id));
+
+        if (!self.filter_by_frame_id(frame_id))
+        {
+            return;
+        }
+
         std_msgs::msg::Header header;
         header.stamp = ns_to_ros2_time(point_cloud->timestamp);
-        header.frame_id =
-            radar_position_id_to_frame_id(static_cast<provizio_radar_position>(point_cloud->radar_position_id));
+        header.frame_id = frame_id;
 
         auto ros2_radar_pc_publisher =
             self.ros2_radar_pc_publisher; // So we're sure it won't be reset in another thread
@@ -325,7 +337,15 @@ namespace provizio
                        : provizio_radar_api_ros2::msg::RadarInfo::UNKNOWN_RANGE;
         };
 
-        const auto position_id = radar_frame_id_to_position_id(request->header.frame_id);
+        if (!frame_id.empty() && !request->header.frame_id.empty() && request->header.frame_id != frame_id)
+        {
+            RCLCPP_WARN(node.get_logger(),
+                        "The node's frame_id %s doesn't match the request's (%s)! Assuming the node's one correct",
+                        frame_id.c_str(), request->header.frame_id.c_str());
+        }
+        const std::string &the_frame_id = !frame_id.empty() ? frame_id : request->header.frame_id;
+
+        const auto position_id = radar_frame_id_to_position_id(the_frame_id);
         const auto current_range = get_current_radar_range(position_id);
         const auto set_range_ip_address = node.get_parameter(set_range_ip_address_param).as_string();
 
@@ -340,9 +360,15 @@ namespace provizio
         {
             response->actual_range = get_current_radar_range(position_id);
             RCLCPP_WARN(node.get_logger(), "Failed to change the radar range of %s to %d. The radar range stays %d.",
-                        request->header.frame_id.c_str(), static_cast<int>(request->target_range),
+                        the_frame_id.c_str(), static_cast<int>(request->target_range),
                         static_cast<int>(response->actual_range));
         }
+    }
+
+    template <typename node_t>
+    bool radar_api_ros2_wrapper_udp<node_t>::filter_by_frame_id(const std::string &message_frame_id)
+    {
+        return this->frame_id.empty() || this->frame_id == message_frame_id;
     }
 } // namespace provizio
 

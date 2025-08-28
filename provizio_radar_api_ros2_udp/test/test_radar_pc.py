@@ -75,6 +75,8 @@ def main(args=None):
         timeout_sec=TIMEOUT_SEC,
         rclpy_args=args,
         node_args=[["point_clouds_udp_port", RADAR_PC_PORT_NUMBER]],
+        frame_id_filters_success=[None, f"provizio_radar_{RADAR_POSITION_ID}"],
+        frame_id_filters_failure=["provizio_radar_front_left"],
     )
 
 
