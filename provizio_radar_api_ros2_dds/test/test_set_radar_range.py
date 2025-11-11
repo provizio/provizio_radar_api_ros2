@@ -242,6 +242,8 @@ def main(args=None):
         timeout_sec=TOTAL_TEST_TIMEOUT,
         rclpy_args=args,
         node_args=[["provizio_dds_domain_id", DDS_DOMAIN_ID]],
+        frame_id_filters_success=[None, FRAME_ID],
+        # Pointless testing for a failure on mismatched frame_id, as the service doesn't filter out received requests by design
     )
 
 

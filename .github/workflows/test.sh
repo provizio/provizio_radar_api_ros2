@@ -35,7 +35,6 @@ docker build \
     --build-arg PROVIZIO_RADAR_API=${PROVIZIO_RADAR_API} \
     --build-arg CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
     --build-arg STATIC_ANALYSIS=${STATIC_ANALYSIS} \
-    --progress=plain \
     --tag ${CONTAINER_TAG} .
 
 # shellcheck disable=SC2086

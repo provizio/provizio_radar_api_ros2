@@ -85,6 +85,8 @@ def main(high_snr_threshold=False, args=None):
             ["point_clouds_udp_port", RADAR_PC_PORT_NUMBER],
             ["snr_threshold", snr_threshold],
         ],
+        frame_id_filters_success=[None, f"provizio_radar_{RADAR_POSITION_ID}"],
+        frame_id_filters_failure=["provizio_radar_front_left"],
     )
 
 

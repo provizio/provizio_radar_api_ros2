@@ -17,14 +17,14 @@
 from nav_msgs.msg import Odometry
 import test_framework
 
-dds_domain_id = 23
-timeout_sec = 8.0
+DDS_DOMAIN_ID = 23
+TIMEOUT_SEC = 8.0
 MAX_MESSAGE_AGE = 0.5
-test_name = "test_radar_odometry"
-frame_id = "test_radar_odometry_frame"
+TEST_NAME = "test_radar_odometry"
+FRAME_ID = "test_radar_odometry_frame"
 NUM_MESSAGES_NEEDED = 10
-expected_child_frame_id = "odometry_child_frame"
-expected_pose_covariance = [
+EXPECTED_CHILD_FRAME_ID = "odometry_child_frame"
+EXPECTED_POSE_COVARIANCE = [
     0.0,
     0.1,
     0.2,
@@ -62,9 +62,9 @@ expected_pose_covariance = [
     5.4,
     5.5,
 ]
-expected_position = [1.0, 2.0, 3.0]
-expected_orientation = [4.0, 5.0, 6.0, 7.0]
-expected_twist_covariance = [
+EXPECTED_POSITION = [1.0, 2.0, 3.0]
+EXPECTED_ORIENTATION = [4.0, 5.0, 6.0, 7.0]
+EXPECTED_TWIST_COVARIANCE = [
     -0.0,
     -0.1,
     -0.2,
@@ -102,13 +102,13 @@ expected_twist_covariance = [
     -5.4,
     -5.5,
 ]
-expected_angular_twist = [-100.0, -200.0, -300.0]
-expected_linear_twist = [100.0, 200.0, 300.0]
+EXPECTED_ANGULAR_TWIST = [-100.0, -200.0, -300.0]
+EXPECTED_LINEAR_TWIST = [100.0, 200.0, 300.0]
 
 
 class TestNode(test_framework.Node):
     def __init__(self):
-        super().__init__(test_name)
+        super().__init__(TEST_NAME)
         self.subscription = self.create_subscription(
             Odometry,
             "/provizio/odometry/radar",
@@ -117,10 +117,10 @@ class TestNode(test_framework.Node):
         )
 
     def listener_callback(self, msg: Odometry):
-        if msg.header.frame_id != frame_id:
-            # Something else received, we want another frame_id
+        if msg.header.frame_id != FRAME_ID:
+            # Something else received, we want another FRAME_ID
             print(
-                f"{test_name}: Unexpected frame_id message received: {msg.header.frame_id}"
+                f"{TEST_NAME}: Unexpected FRAME_ID message received: {msg.header.frame_id}"
             )
             return
 
@@ -132,10 +132,10 @@ class TestNode(test_framework.Node):
         self.check_age(msg.header, MAX_MESSAGE_AGE)
 
         self.check_value(
-            "msg.child_frame_id", msg.child_frame_id, expected_child_frame_id
+            "msg.child_frame_id", msg.child_frame_id, EXPECTED_CHILD_FRAME_ID
         )
         self.check_value(
-            "msg.pose.covariance", msg.pose.covariance, expected_pose_covariance
+            "msg.pose.covariance", msg.pose.covariance, EXPECTED_POSE_COVARIANCE
         )
         self.check_value(
             "pose.pose.position",
@@ -144,7 +144,7 @@ class TestNode(test_framework.Node):
                 msg.pose.pose.position.y,
                 msg.pose.pose.position.z,
             ],
-            expected_position,
+            EXPECTED_POSITION,
         )
         self.check_value(
             "pose.pose.orientation",
@@ -154,10 +154,10 @@ class TestNode(test_framework.Node):
                 msg.pose.pose.orientation.z,
                 msg.pose.pose.orientation.w,
             ],
-            expected_orientation,
+            EXPECTED_ORIENTATION,
         )
         self.check_value(
-            "msg.twist.covariance", msg.twist.covariance, expected_twist_covariance
+            "msg.twist.covariance", msg.twist.covariance, EXPECTED_TWIST_COVARIANCE
         )
         self.check_value(
             "twist.twist.angular",
@@ -166,7 +166,7 @@ class TestNode(test_framework.Node):
                 msg.twist.twist.angular.y,
                 msg.twist.twist.angular.z,
             ],
-            expected_angular_twist,
+            EXPECTED_ANGULAR_TWIST,
         )
         self.check_value(
             "twist.twist.linear",
@@ -175,7 +175,7 @@ class TestNode(test_framework.Node):
                 msg.twist.twist.linear.y,
                 msg.twist.twist.linear.z,
             ],
-            expected_linear_twist,
+            EXPECTED_LINEAR_TWIST,
         )
 
         self.message_checked(NUM_MESSAGES_NEEDED)
@@ -183,16 +183,18 @@ class TestNode(test_framework.Node):
 
 def main(args=None):
     return test_framework.run(
-        test_name=test_name,
+        test_name=TEST_NAME,
         synthetic_data_dds_args=[
             "--radar_odometry",
-            f"--frame_id={frame_id}",
-            f"--dds_domain_id={dds_domain_id}",
+            f"--frame_id={FRAME_ID}",
+            f"--dds_domain_id={DDS_DOMAIN_ID}",
         ],
         node_type=TestNode,
-        timeout_sec=timeout_sec,
+        timeout_sec=TIMEOUT_SEC,
         rclpy_args=args,
-        node_args=[["provizio_dds_domain_id", dds_domain_id]],
+        node_args=[["provizio_dds_domain_id", DDS_DOMAIN_ID]],
+        frame_id_filters_success=[None, FRAME_ID],
+        frame_id_filters_failure=[FRAME_ID + "_mismatch"],
     )
 
 

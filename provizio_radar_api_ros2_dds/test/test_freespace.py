@@ -138,6 +138,8 @@ def main(source: FreespaceSource, args=None):
         timeout_sec=TIMEOUT_SEC,
         rclpy_args=args,
         node_args=[["provizio_dds_domain_id", DDS_DOMAIN_ID]],
+        frame_id_filters_success=[None, FRAME_ID],
+        frame_id_filters_failure=[FRAME_ID + "_mismatch"],
     )
 
 

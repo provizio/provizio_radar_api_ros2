@@ -9,7 +9,7 @@ jobs:
     name: Check license headers
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: .github/workflows/check_license_headers.sh
 
   test:
@@ -26,8 +26,8 @@ jobs:
     env:
       STATIC_ANALYSIS: ON
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: .github/workflows/test.sh ${{matrix.ros}} ${{matrix.cc}} ${{matrix.api}} ${{matrix.build_type}} ${{matrix.ros_rmw}} ${STATIC_ANALYSIS}
       - name: Docker Cleanup
         if: always()
-        run: docker rm -f provizio_radar_api_ros2_test_${{matrix.ros}} ; docker rmi -f provizio_radar_api_ros2_test:${{matrix.ros}} ; docker system prune -af
+        run: (docker rm -f provizio_radar_api_ros2_test_${{matrix.ros}} ; docker rmi -f provizio_radar_api_ros2_test:${{matrix.ros}} ; docker system prune -af) || echo "Failed to properly clean-up, likely due to insufficient permissions on the build runner"

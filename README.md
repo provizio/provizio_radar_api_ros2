@@ -188,6 +188,7 @@ Contains polygon "id" and can be used for unoccupied and other type of regions.
 
 #### Common
 
+- `frame_id` (string). Default: `""`. Sets a filter to only publish messages with the given frame id (f.e. `"provizio_radar_front_center"`), i.e. from a specific radar.
 - `snr_threshold` (float dB). Default: `0`. Sets a filter to only publish radar points with signal-to-noise ratio >= specified value.
 
 #### UDP API

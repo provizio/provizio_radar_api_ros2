@@ -25,6 +25,7 @@ namespace provizio
         node.declare_parameter(publish_radar_info_param, feature_enabled_by_default);
         node.declare_parameter(serve_set_radar_range_param, feature_enabled_by_default);
         node.declare_parameter(radar_pc_ros2_topic_name_param, default_radar_pc_ros2_topic_name);
+        node.declare_parameter(frame_id_param, default_frame_id);
         node.declare_parameter(snr_threshold_param, static_cast<double>(default_snr_threshold));
         node.declare_parameter(radar_info_ros2_topic_name_param, default_radar_info_ros2_topic_name);
         node.declare_parameter(set_radar_range_ros2_service_name_param, default_set_radar_range_ros2_service_name);
