@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <cstring>
 #include <iterator>
 
 #include "provizio_radar_api_ros2/constants.h"
