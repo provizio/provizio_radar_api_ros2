@@ -16,6 +16,7 @@
 #define PROVIZIO_RADAR_API_ROS2_RADAR_API_ROS2_WRAPPER_UDP
 
 #include <atomic>
+#include <cstring>
 #include <functional>
 #include <string>
 #include <thread>

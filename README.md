@@ -21,7 +21,7 @@ This ROS 2 driver then can be leveraged to overcome all of these limitations. In
 
 - Linux (Ubuntu 20.04+ recommended, but other distributions are also supported)
 - C++-17 compatible compiler
-- CMake 3.14+
+- CMake 3.20+
 - ROS 2 Humble+
 
 ### Building steps

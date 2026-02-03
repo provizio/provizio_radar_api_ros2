@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.20)
 
 # Configuration
 set(DISABLE_PROVIZIO_CODING_STANDARDS_CHECKS OFF CACHE BOOL "Disable all provizio/coding_standards checks")
@@ -6,7 +6,7 @@ set(PROVIZIO_CODING_STANDARDS_VERSION "1.10.1" CACHE STRING "provizio/coding_sta
 set(BUILD_SIMPLE_NODE ON CACHE BOOL "Enable building of provizio_radar_api_ros2_node")
 set(BUILD_LIFECYCLE_NODE ON CACHE BOOL "Enable building of provizio_radar_api_ros2_lifecycle_node")
 set(PROVIZIO_RADAR_API "dds" CACHE STRING "Underlying Provizio radar API: dds / udp")
-set(PROVIZIO_DDS_VERSION "1.8.4" CACHE STRING "provizio_dds version (for dds API)")
+set(PROVIZIO_DDS_VERSION "1.9.1" CACHE STRING "provizio_dds version (for dds API)")
 set(PROVIZIO_API_CORE_VERSION "v2024.04.16" CACHE STRING "provizio_radar_api_core version (for udp API)")
 
 set(PROJECT "provizio_radar_api_ros2")
