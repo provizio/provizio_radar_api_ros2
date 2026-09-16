@@ -201,8 +201,8 @@ Contains polygon "id" and can be used for unoccupied and other type of regions.
 #### UDP API
 
 - `max_radars` (int). Default: `6`. The maximum number of Provizio radars in the local network that can be handled by the node. The UDP API implementation needs all the required memory to be allocated in advance. Every radar's context takes over 3Mb of memory, so limiting the number of maximum radars in the setup significantly reduces memory consumption.
-- `point_clouds_udp_port` (int16). Default: `7769`. The port number used to send radar point clouds over Provizio UDP protocol.
-- `set_range_udp_port` (int16). Default: `7770`. The port number used to set current radar range over Provizio UDP protocol.
+- `point_clouds_udp_port` (int, 0..65535). Default: `7769`. The port the node listens on for radar point clouds and radar entities over the Provizio UDP protocol (the protocol shares one port for both). `0` means the API's own default for this port (`7769`).
+- `set_range_udp_port` (int, 0..65535). Default: `7770`. The port number used to set current radar range over Provizio UDP protocol. `0` means the API's own default for this port (`7770`).
 
 #### DDS API
 

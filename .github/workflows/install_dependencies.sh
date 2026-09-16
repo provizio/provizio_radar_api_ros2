@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -eu
+# pipefail matters for the `curl ... | bash` below: without it a failed curl is masked by the
+# exit status of bash, which reads EOF from the broken pipe and succeeds, so `set -e` never fires.
+set -euo pipefail
 
 CC=${CC:-"gcc"}
 STATIC_ANALYSIS=${1:-"OFF"}
@@ -48,8 +50,9 @@ if [[ "${TEST_ENVIRONMENT}" != "" ]]; then
 
     # provizio_dds
     apt install -y --no-install-recommends curl
-    # -f so an HTTP error (e.g. a bad version) fails the pipeline instead of piping the error page into
-    # bash, which curl would otherwise report as success and `set -eu` would not catch
+    # -f makes curl exit non-zero on an HTTP error (e.g. a bad version) instead of piping the error page
+    # into bash; `set -o pipefail` above is what turns that non-zero into a failed pipeline, as the exit
+    # status of the pipeline is otherwise bash's, which succeeds on the empty input.
     curl -fsSL https://raw.githubusercontent.com/provizio/provizio_dds/${TESTS_PROVIZIO_DDS_VERSION}/install_dependencies.sh | bash -s ON
     python3 -m pip install -v git+https://github.com/provizio/provizio_dds.git@${TESTS_PROVIZIO_DDS_VERSION}
 fi

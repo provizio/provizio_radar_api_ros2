@@ -64,6 +64,16 @@ if(NOT COMMAND ament_target_dependencies)
         set(dependency_targets "")
         foreach(argument ${ARGN})
             if(NOT argument MATCHES "^(SYSTEM|PUBLIC|PRIVATE|INTERFACE)$")
+                # A package that exports no <pkg>_TARGETS (an old-style ament package exporting only
+                # <pkg>_LIBRARIES / _INCLUDE_DIRS) would otherwise expand to nothing here and simply not be
+                # linked, surfacing much later as a confusing missing-header or undefined-symbol error.
+                # NOT ${argument}_TARGETS rather than NOT DEFINED: a package that sets the variable to an
+                # empty list is still DEFINED and would still link nothing, which is the case this guards.
+                if(NOT ${argument}_TARGETS)
+                    message(FATAL_ERROR
+                        "ament_target_dependencies shim: ${argument} exports no ${argument}_TARGETS, so it "
+                        "cannot be linked this way. This distro needs the dependency handled explicitly.")
+                endif()
                 foreach(dependency_target ${${argument}_TARGETS})
                     list(APPEND dependency_targets ${dependency_target})
                     # Keep the dependency's headers "system" to avoid warnings-as-errors from ROS 2 headers

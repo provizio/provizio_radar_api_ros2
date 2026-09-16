@@ -234,8 +234,7 @@ def _do_run(
         while True:
             attempt += 1
             result = subprocess.run(
-                f"timeout 30 ros2 lifecycle set /{node_name} {action}",
-                shell=True,
+                ["timeout", "30", "ros2", "lifecycle", "set", f"/{node_name}", action],
                 capture_output=True,
                 text=True,
             )
