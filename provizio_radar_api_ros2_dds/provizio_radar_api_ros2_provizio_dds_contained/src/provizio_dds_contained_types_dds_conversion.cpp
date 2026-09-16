@@ -47,6 +47,20 @@ namespace provizio
             return static_cast<std::int8_t>(dds_range);
         }
 
+        // The reverse of to_contained_radar_range. Needed for the same reason: a bare cast would turn
+        // ROS 2's UNKNOWN_RANGE (-1) into 4294967295 rather than the DDS UNKNOWN_RANGE (65535), putting a
+        // value on the wire that means nothing to the radar, and would do the same to any other negative
+        // or out-of-range value a service client happens to send.
+        std::uint32_t to_dds_radar_range(const std::int8_t contained_range)
+        {
+            if (contained_range < 0 || static_cast<std::uint32_t>(contained_range) > dds_max_known_range)
+            {
+                return dds_unknown_range;
+            }
+
+            return static_cast<std::uint32_t>(contained_range);
+        }
+
         provizio::contained_time to_contained_time(const builtin_interfaces::msg::Time &stamp)
         {
             return {stamp.sec(), stamp.nanosec()};
@@ -228,7 +242,7 @@ namespace provizio
         provizio::srv::set_radar_range_Request result;
         result.header(to_dds_header(std::move(header)));
         result.serial_number(serial_number != nullptr ? std::string{serial_number} : std::string{});
-        result.target_range(static_cast<std::uint32_t>(target_range));
+        result.target_range(to_dds_radar_range(target_range));
         return result;
     }
 
