@@ -23,6 +23,10 @@ namespace provizio
     constexpr std::uint64_t ns_in_s = 1000000000;
     constexpr std::uint64_t receive_timeout_ns = ns_in_s / 10;
     constexpr std::size_t default_max_radars = 6;
+    // Upper bound accepted for the max_radars parameter. Each radar costs one point cloud context and,
+    // when radar entities are re-published, one entities context (which embeds
+    // PROVIZIO__MAX_RADAR_ENTITIES_PER_FRAME entities), so an unvalidated value is a large allocation.
+    constexpr std::size_t max_supported_radars = 64;
     extern const std::string field_x_name;
     extern const std::string field_y_name;
     extern const std::string field_z_name;

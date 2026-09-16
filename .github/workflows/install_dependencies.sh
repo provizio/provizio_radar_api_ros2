@@ -48,7 +48,9 @@ if [[ "${TEST_ENVIRONMENT}" != "" ]]; then
 
     # provizio_dds
     apt install -y --no-install-recommends curl
-    curl -s https://raw.githubusercontent.com/provizio/provizio_dds/${TESTS_PROVIZIO_DDS_VERSION}/install_dependencies.sh | bash -s ON
+    # -f so an HTTP error (e.g. a bad version) fails the pipeline instead of piping the error page into
+    # bash, which curl would otherwise report as success and `set -eu` would not catch
+    curl -fsSL https://raw.githubusercontent.com/provizio/provizio_dds/${TESTS_PROVIZIO_DDS_VERSION}/install_dependencies.sh | bash -s ON
     python3 -m pip install -v git+https://github.com/provizio/provizio_dds.git@${TESTS_PROVIZIO_DDS_VERSION}
 fi
 

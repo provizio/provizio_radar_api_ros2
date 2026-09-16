@@ -54,22 +54,25 @@ extern "C"
     // request/response DDS topics are inferred from service_name (rq/<service_name>Request,
     // rr/<service_name>Reply).
     std::shared_ptr<void> provizio_dds_contained_make_service_client_set_radar_range(
-        const std::shared_ptr<void> &domain_participant, const std::string &service_name);
+        const std::shared_ptr<void> &domain_participant, const char *service_name);
     // Issues a single set_radar_range request and waits (up to timeout_ns, polling should_stop so the
     // caller can interrupt on shutdown) for the radar's response. On contained_set_radar_range_status::ok
     // the out_* parameters are populated with the radar's response.
     //
     // The request/response is marshalled as C strings and POD arrays (never std::string / std::vector),
     // because this function is the extern "C" boundary of a library dlmopen'd into a separate C++ runtime
-    // / heap namespace. out_error_message must point to a buffer of at least
-    // contained_set_radar_range_error_message_capacity bytes; out_supported_ranges to an array of at
-    // least contained_set_radar_range_max_supported_ranges elements.
+    // / heap namespace. The capacities of the caller-owned out_ buffers are passed explicitly rather than
+    // taken from contained_set_radar_range_error_message_capacity /
+    // contained_set_radar_range_max_supported_ranges: each side of the boundary compiles its own copy of
+    // those constants, so relying on them here would silently turn any version skew between the node and
+    // the contained .so into a heap overflow in the *caller's* namespace. All pointer parameters except
+    // should_stop are mandatory; the function returns "error" if any of them is null.
     provizio::contained_set_radar_range_status provizio_dds_contained_request_set_radar_range(
         const std::shared_ptr<void> &service_client, const char *frame_id, const char *serial_number,
         std::int8_t target_range, std::int32_t header_stamp_sec, std::uint32_t header_stamp_nanosec,
-        std::uint64_t timeout_ns, std::atomic<bool> *should_stop, bool *out_success,
-        std::int8_t *out_current_range, char *out_error_message, std::int8_t *out_supported_ranges,
-        std::size_t *out_num_supported_ranges);
+        std::uint64_t timeout_ns, std::atomic<bool> *should_stop, bool *out_success, std::int8_t *out_current_range,
+        char *out_error_message, std::size_t out_error_message_capacity, std::int8_t *out_supported_ranges,
+        std::size_t out_supported_ranges_capacity, std::size_t *out_num_supported_ranges);
 }
 
 #endif // PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINED

@@ -95,20 +95,30 @@ class TestNode(test_framework.Node):
     def check_response(
         self, response, expected_range, expected_success, expected_supported_ranges=None
     ):
-        self.check_value("response.actual_range", response.actual_range, expected_range)
-        self.check_value("response.success", response.success, expected_success)
+        # Returns whether the response matched, so callers can short-circuit instead of counting a
+        # failed check as a successful message (matching the UDP twin of this test).
+        if not self.check_value(
+            "response.actual_range", response.actual_range, expected_range
+        ):
+            return False
+        if not self.check_value("response.success", response.success, expected_success):
+            return False
         if expected_success:
-            self.check_value(
+            if not self.check_value(
                 "response.error_message (empty on success)", response.error_message, ""
-            )
+            ):
+                return False
         elif not response.error_message:
             self.fail_with_message("Expected a non-empty error_message on failure")
+            return False
         if expected_supported_ranges is not None:
-            self.check_value(
+            if not self.check_value(
                 "response.supported_ranges",
                 list(response.supported_ranges),
                 expected_supported_ranges,
-            )
+            ):
+                return False
+        return True
 
     def start_tests(self):
         for i in range(WAIT_FOR_SERVICE_RETRIES):
@@ -145,7 +155,10 @@ class TestNode(test_framework.Node):
 
         # This may be served via the wrapper's quick-set short-circuit (no round-trip), which doesn't
         # populate supported_ranges, so only actual_range/success are checked here.
-        self.check_response(response, request.target_range, expected_success=True)
+        if not self.check_response(
+            response, request.target_range, expected_success=True
+        ):
+            return False
 
         self.successful_messages += 1
         return True
@@ -160,12 +173,13 @@ class TestNode(test_framework.Node):
         response = result_with_timeout(self.client.call_async(request))
         self.got_response()
 
-        self.check_response(
+        if not self.check_response(
             response,
             request.target_range,
             expected_success=True,
             expected_supported_ranges=EXPECTED_SUPPORTED_RANGES,
-        )
+        ):
+            return False
 
         self.successful_messages += 1
         return True
@@ -182,12 +196,13 @@ class TestNode(test_framework.Node):
         )
         self.got_response()
 
-        self.check_response(
+        if not self.check_response(
             response,
             request.target_range,
             expected_success=True,
             expected_supported_ranges=EXPECTED_SUPPORTED_RANGES,
-        )
+        ):
+            return False
 
         self.successful_messages += 1
         return True
@@ -207,12 +222,13 @@ class TestNode(test_framework.Node):
         self.got_response()
 
         # The radar received the request and refused it, so it still reports its supported ranges.
-        self.check_response(
+        if not self.check_response(
             response,
             previous_test_range,
             expected_success=False,
             expected_supported_ranges=EXPECTED_SUPPORTED_RANGES,
-        )
+        ):
+            return False
 
         self.successful_messages += 1
         return True
@@ -233,7 +249,10 @@ class TestNode(test_framework.Node):
 
         # No response came back (dropped), so the wrapper reports the last known range with success=false
         # and an error_message; supported_ranges stays empty (nothing was received to populate it).
-        self.check_response(response, previous_test_range, expected_success=False)
+        if not self.check_response(
+            response, previous_test_range, expected_success=False
+        ):
+            return False
 
         self.successful_messages += 1
         return True
@@ -258,8 +277,14 @@ class TestNode(test_framework.Node):
         response2 = result_with_timeout(future2)
         self.got_response()
 
-        self.check_response(response1, request1.target_range, expected_success=True)
-        self.check_response(response2, request2.target_range, expected_success=True)
+        if not self.check_response(
+            response1, request1.target_range, expected_success=True
+        ):
+            return False
+        if not self.check_response(
+            response2, request2.target_range, expected_success=True
+        ):
+            return False
 
         self.successful_messages += 1
         return True

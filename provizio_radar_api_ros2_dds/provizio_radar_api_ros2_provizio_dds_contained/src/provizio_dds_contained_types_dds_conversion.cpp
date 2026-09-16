@@ -24,6 +24,29 @@ namespace provizio
 {
     namespace
     {
+        // provizio_dds_idls radar_info carries ranges as uint32 (SHORT=0..HYPER_LONG=4, UNKNOWN=65535),
+        // while ROS 2 RadarInfo.msg uses int8 (the same 0..4, but UNKNOWN=-1). Map the known values
+        // explicitly rather than narrowing with a static_cast: the cast turns 65535 into -1 only by
+        // coincidence of two's-complement truncation, and silently turns every *unknown* value into a
+        // plausible-looking range (256 -> SHORT_RANGE, 200 -> -56), which the ROS 2 client cannot tell
+        // apart from a genuine answer. Anything unrecognised becomes UNKNOWN_RANGE, matching what the
+        // UDP wrapper's udp_api_radar_range_to_ros2_range does.
+        constexpr std::int8_t contained_unknown_range = -1;  // RadarInfo::UNKNOWN_RANGE
+        constexpr std::uint32_t dds_unknown_range = 65535;   // radar_info_Constants::UNKNOWN_RANGE
+        constexpr std::uint32_t dds_max_known_range = 4;     // radar_info_Constants::HYPER_LONG_RANGE
+
+        std::int8_t to_contained_radar_range(const std::uint32_t dds_range)
+        {
+            if (dds_range > dds_max_known_range)
+            {
+                // Includes dds_unknown_range itself, and any range this build doesn't know about
+                static_assert(dds_unknown_range > dds_max_known_range, "UNKNOWN_RANGE must not be a valid range");
+                return contained_unknown_range;
+            }
+
+            return static_cast<std::int8_t>(dds_range);
+        }
+
         provizio::contained_time to_contained_time(const builtin_interfaces::msg::Time &stamp)
         {
             return {stamp.sec(), stamp.nanosec()};
@@ -178,13 +201,13 @@ namespace provizio
         provizio::contained_radar_info result;
         result.header = to_contained_header(message.header());
         result.serial_number = message.serial_number();
-        result.current_range = static_cast<std::int8_t>(message.current_range());
+        result.current_range = to_contained_radar_range(message.current_range());
         const auto &supported_ranges = message.supported_ranges();
         result.supported_ranges.reserve(supported_ranges.size());
         // As of provizio_dds 2.0 / provizio_dds_idls 2.1 radar_info range fields are plain uint32 (were an
         // enum radar_range before); the on-wire bytes are identical.
         std::transform(supported_ranges.begin(), supported_ranges.end(), std::back_inserter(result.supported_ranges),
-                       [](const std::uint32_t range) { return static_cast<std::int8_t>(range); });
+                       [](const std::uint32_t range) { return to_contained_radar_range(range); });
         result.current_multiplexing_mode = -1; // TODO(iivanov): Use actual multiplexing mode when it's available
         return result;
     }
@@ -217,11 +240,11 @@ namespace provizio
         result.success = message.success();
         result.error_message = message.error_message();
         result.serial_number = message.serial_number();
-        result.current_range = static_cast<std::int8_t>(message.current_range());
+        result.current_range = to_contained_radar_range(message.current_range());
         const auto &supported_ranges = message.supported_ranges();
         result.supported_ranges.reserve(supported_ranges.size());
         std::transform(supported_ranges.begin(), supported_ranges.end(), std::back_inserter(result.supported_ranges),
-                       [](const std::uint32_t range) { return static_cast<std::int8_t>(range); });
+                       [](const std::uint32_t range) { return to_contained_radar_range(range); });
         return result;
     }
 } // namespace provizio

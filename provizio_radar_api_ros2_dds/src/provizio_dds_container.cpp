@@ -169,7 +169,7 @@ namespace provizio
                                                                   const std::string &service_name)
     {
         GET_CONTAINED_FUNCTION(provizio_dds_contained_make_service_client_set_radar_range, the_function);
-        return (*the_function)(domain_participant, service_name);
+        return (*the_function)(domain_participant, service_name.c_str());
     }
 
     contained_set_radar_range_status dds_request_set_radar_range(const std::shared_ptr<void> &service_client,
@@ -188,10 +188,13 @@ namespace provizio
         std::int8_t current_range = -1; // provizio_radar_api_ros2::msg::RadarInfo::UNKNOWN_RANGE
         std::size_t num_supported_ranges = 0;
 
-        const auto status = (*the_function)(
-            service_client, request.header.frame_id.c_str(), request.serial_number.c_str(), request.target_range,
-            request.header.stamp.sec, request.header.stamp.nanosec, timeout_ns, should_stop, &success, &current_range,
-            error_message.data(), supported_ranges.data(), &num_supported_ranges);
+        // The buffer capacities are passed explicitly: the contained library compiles its own copy of the
+        // capacity constants, so it must clamp against *these* sizes rather than its own.
+        const auto status =
+            (*the_function)(service_client, request.header.frame_id.c_str(), request.serial_number.c_str(),
+                            request.target_range, request.header.stamp.sec, request.header.stamp.nanosec, timeout_ns,
+                            should_stop, &success, &current_range, error_message.data(), error_message.size(),
+                            supported_ranges.data(), supported_ranges.size(), &num_supported_ranges);
 
         if (status == contained_set_radar_range_status::ok)
         {

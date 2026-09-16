@@ -145,6 +145,11 @@ namespace provizio
         // max_time_to_set_radar_range.
         std::atomic<bool> stop_set_radar_range{false};
 
+        // Guards dds_set_radar_range_client against a concurrent reset() in deactivate(). Copying a
+        // shared_ptr is not atomic with respect to a concurrent reset of the same object, so the copy in
+        // on_set_radar_range_request must be made under this lock rather than bare.
+        std::mutex dds_set_radar_range_client_mutex;
+
         std::mutex current_radar_ranges_mutex;
         std::unordered_map<std::string, std::int8_t> current_radar_ranges_by_frame_id;
         std::unordered_map<std::string, std::int8_t> current_radar_ranges_by_serial_number;
@@ -294,8 +299,11 @@ namespace provizio
 
         if (node.get_parameter(serve_set_radar_range_param).as_bool())
         {
-            dds_set_radar_range_client =
-                make_dds_service_client_set_radar_range(dds_domain_participant, set_radar_range_dds_service_name);
+            {
+                std::lock_guard<std::mutex> lock{dds_set_radar_range_client_mutex};
+                dds_set_radar_range_client =
+                    make_dds_service_client_set_radar_range(dds_domain_participant, set_radar_range_dds_service_name);
+            }
             stop_set_radar_range = false;
             ros2_set_radar_range_service = node.template create_service<provizio_radar_api_ros2::srv::SetRadarRange>(
                 node.get_parameter(set_radar_range_ros2_service_name_param).as_string(),
@@ -345,7 +353,10 @@ namespace provizio
         ros2_camera_freespace_instance_publisher.reset();
 #endif
         ros2_radar_info_publisher.reset();
-        dds_set_radar_range_client.reset();
+        {
+            std::lock_guard<std::mutex> lock{dds_set_radar_range_client_mutex};
+            dds_set_radar_range_client.reset();
+        }
 
         // dds_domain_participant
         dds_domain_participant.reset();
@@ -598,8 +609,23 @@ namespace provizio
         }
 
         // Issue a request/response call to the radar's set_radar_range service and wait for its response.
-        // Copy the client to a local first so it can't be reset by deactivate() on another thread mid-call.
-        auto client = dds_set_radar_range_client;
+        // Take a copy of the client under the lock: deactivate() may reset the member from another thread,
+        // and copying a shared_ptr concurrently with a reset of the same object is a data race. The local
+        // copy then keeps the client alive for the duration of the call.
+        std::shared_ptr<void> client;
+        {
+            std::lock_guard<std::mutex> lock{dds_set_radar_range_client_mutex};
+            client = dds_set_radar_range_client;
+        }
+        if (client == nullptr)
+        {
+            // Deactivated between the service callback starting and this point
+            response->success = false;
+            response->actual_range = get_current_radar_range(frame_id, serial_number);
+            response->error_message = "The node is not active";
+            return;
+        }
+
         provizio::contained_set_radar_range_response contained_response;
         const auto status = dds_request_set_radar_range(
             client, to_contained_set_radar_range(*request),
@@ -618,13 +644,26 @@ namespace provizio
         }
         else
         {
-            // No response from the radar (timed out or interrupted on shutdown): report the last known range.
+            // No response from the radar: report the last known range, and say which of the three reasons
+            // it was - a timeout, a deactivation part-way through, or a local failure to issue the request.
             response->success = false;
             response->actual_range = get_current_radar_range(frame_id, serial_number);
-            response->error_message =
-                (status == provizio::contained_set_radar_range_status::timed_out)
-                    ? "Timed out waiting for the radar to respond to the set range request"
-                    : "Failed to issue the set range request";
+            switch (status)
+            {
+            case provizio::contained_set_radar_range_status::timed_out:
+                response->error_message = "Timed out waiting for the radar to respond to the set range request";
+                break;
+
+            case provizio::contained_set_radar_range_status::interrupted:
+                response->error_message =
+                    "Interrupted waiting for the radar to respond to the set range request (the node is "
+                    "being deactivated)";
+                break;
+
+            default:
+                response->error_message = "Failed to issue the set range request";
+                break;
+            }
         }
 
         if (!response->success)

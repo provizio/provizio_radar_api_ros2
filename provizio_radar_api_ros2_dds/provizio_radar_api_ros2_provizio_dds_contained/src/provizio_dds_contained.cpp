@@ -15,11 +15,14 @@
 #include "provizio_radar_api_ros2/provizio_dds_contained.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstring>
 #include <future>
+#include <iostream>
 #include <memory>
+#include <string>
 
 #include "geometry_msgs/msg/PolygonInstanceStampedPubSubTypes.h"
 #include "nav_msgs/msg/OdometryPubSubTypes.h"
@@ -97,20 +100,39 @@ extern "C"
     }
 
     std::shared_ptr<void> provizio_dds_contained_make_service_client_set_radar_range(
-        const std::shared_ptr<void> &domain_participant, const std::string &service_name)
+        const std::shared_ptr<void> &domain_participant, const char *const service_name)
     {
+        // service_name arrives as a C string (not std::string) for the same reason the request/response
+        // payloads do: this is the extern "C" boundary of a dlmopen'd library, and the std::string is
+        // constructed here, inside the contained runtime that will also destroy it.
         return provizio::dds::make_service_client<provizio::srv::set_radar_range_RequestPubSubType,
                                                   provizio::srv::set_radar_range_ResponsePubSubType>(
-            std::static_pointer_cast<provizio::dds::DomainParticipant>(domain_participant), service_name);
+            std::static_pointer_cast<provizio::dds::DomainParticipant>(domain_participant),
+            std::string{service_name != nullptr ? service_name : ""});
     }
 
     provizio::contained_set_radar_range_status provizio_dds_contained_request_set_radar_range(
         const std::shared_ptr<void> &service_client, const char *const frame_id, const char *const serial_number,
         const std::int8_t target_range, const std::int32_t header_stamp_sec, const std::uint32_t header_stamp_nanosec,
         const std::uint64_t timeout_ns, std::atomic<bool> *const should_stop, bool *const out_success,
-        std::int8_t *const out_current_range, char *const out_error_message, std::int8_t *const out_supported_ranges,
-        std::size_t *const out_num_supported_ranges)
+        std::int8_t *const out_current_range, char *const out_error_message,
+        const std::size_t out_error_message_capacity, std::int8_t *const out_supported_ranges,
+        const std::size_t out_supported_ranges_capacity, std::size_t *const out_num_supported_ranges)
     {
+        // std::atomic<bool> is passed by pointer across the boundary, which is only sound because it's
+        // always lock-free: a lock-based implementation would use a different lock table in each of the
+        // two linker namespaces, so the two sides wouldn't actually synchronize with each other.
+        static_assert(std::atomic<bool>::is_always_lock_free,
+                      "std::atomic<bool> must be lock-free to be shared across the dlmopen boundary");
+
+        // Mandatory out_ parameters (should_stop is optional). Checked rather than assumed: this is a C
+        // ABI, and a null dereference here would fault in the caller's namespace.
+        if (out_success == nullptr || out_current_range == nullptr || out_error_message == nullptr ||
+            out_supported_ranges == nullptr || out_num_supported_ranges == nullptr || out_error_message_capacity == 0)
+        {
+            return provizio::contained_set_radar_range_status::error;
+        }
+
         // This function is the C-ABI boundary of a library loaded via dlmopen into a separate linker
         // namespace, so: (1) no exception may escape it (that would cross the boundary and std::terminate),
         // and (2) no std::string / std::vector may cross it - the request arrives as C strings / POD and the
@@ -130,17 +152,32 @@ extern "C"
                                                                         header_stamp_sec, header_stamp_nanosec);
             auto future = client->request(dds_request);
 
+            // Poll should_stop periodically, but never wait past the deadline: waiting a full poll
+            // interval unconditionally would overshoot the caller's timeout by up to that interval and
+            // ignore timeouts shorter than it. timeout_ns is clamped because it arrives as an unsigned
+            // value over the C ABI and would otherwise overflow the signed duration into a past deadline.
             constexpr auto poll_interval = std::chrono::milliseconds{100};
-            const auto deadline = std::chrono::steady_clock::now() +
-                                  std::chrono::nanoseconds{static_cast<std::chrono::nanoseconds::rep>(timeout_ns)};
+            constexpr auto max_timeout = static_cast<std::uint64_t>(std::chrono::nanoseconds::max().count());  // NOLINT
+            const auto deadline =
+                std::chrono::steady_clock::now() +
+                std::chrono::nanoseconds{static_cast<std::chrono::nanoseconds::rep>(std::min(timeout_ns, max_timeout))};
             while (true)
             {
                 if (should_stop != nullptr && should_stop->load())
                 {
-                    return provizio::contained_set_radar_range_status::timed_out;
+                    return provizio::contained_set_radar_range_status::interrupted;
                 }
 
-                if (future.wait_for(poll_interval) == std::future_status::ready)
+                const auto now = std::chrono::steady_clock::now();
+                if (now >= deadline)
+                {
+                    return provizio::contained_set_radar_range_status::timed_out;
+                }
+                const auto wait_for =
+                    std::min(poll_interval, std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now) +
+                                                std::chrono::milliseconds{1});
+
+                if (future.wait_for(wait_for) == std::future_status::ready)
                 {
                     // Build the response inside this library, then copy it out through POD buffers so no
                     // std::string / std::vector crosses the boundary.
@@ -149,22 +186,30 @@ extern "C"
                     *out_current_range = response.current_range;
 
                     const std::size_t message_length =
-                        std::min(response.error_message.size(),
-                                 provizio::contained_set_radar_range_error_message_capacity - 1);
+                        std::min(response.error_message.size(), out_error_message_capacity - 1);
                     std::memcpy(out_error_message, response.error_message.data(), message_length);
                     out_error_message[message_length] = '\0';
 
-                    const std::size_t num_ranges = std::min(
-                        response.supported_ranges.size(), provizio::contained_set_radar_range_max_supported_ranges);
+                    const std::size_t num_ranges =
+                        std::min(response.supported_ranges.size(), out_supported_ranges_capacity);
                     std::copy_n(response.supported_ranges.begin(), num_ranges, out_supported_ranges);
                     *out_num_supported_ranges = num_ranges;
 
-                    return provizio::contained_set_radar_range_status::ok;
-                }
+                    // Truncation would otherwise be indistinguishable from a complete response to the
+                    // ROS 2 client, so make it visible at least in the node's output.
+                    if (message_length < response.error_message.size())
+                    {
+                        std::cerr << "[provizio_dds_contained] set_radar_range error_message truncated from "
+                                  << response.error_message.size() << " to " << message_length << " bytes" << std::endl;
+                    }
+                    if (num_ranges < response.supported_ranges.size())
+                    {
+                        std::cerr << "[provizio_dds_contained] set_radar_range supported_ranges truncated from "
+                                  << response.supported_ranges.size() << " to " << num_ranges << " entries"
+                                  << std::endl;
+                    }
 
-                if (std::chrono::steady_clock::now() >= deadline)
-                {
-                    return provizio::contained_set_radar_range_status::timed_out;
+                    return provizio::contained_set_radar_range_status::ok;
                 }
             }
         }

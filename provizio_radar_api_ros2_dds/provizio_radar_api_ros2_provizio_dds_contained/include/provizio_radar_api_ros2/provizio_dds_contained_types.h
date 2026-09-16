@@ -167,9 +167,10 @@ namespace provizio
     // was received; check contained_set_radar_range_response::success for whether the range was set.
     enum class contained_set_radar_range_status : std::int32_t
     {
-        ok = 0,        // A response was received from the radar
-        timed_out = 1, // No response received within the timeout (or interrupted by shutdown)
-        error = 2      // Failed to issue the request
+        ok = 0,          // A response was received from the radar
+        timed_out = 1,   // No response received within the timeout
+        error = 2,       // Failed to issue the request
+        interrupted = 3  // The wait was interrupted (the node is being deactivated / shut down)
     };
 
     // The set_radar_range request/response crosses the extern "C" boundary of a library dlmopen'd into a

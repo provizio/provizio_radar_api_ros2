@@ -144,8 +144,19 @@ namespace provizio
                           std::placeholders::_2));
         }
 
-        // Initialize the Provizio Radar API contexts (needed in any case)
-        const auto max_radars = static_cast<std::size_t>(node.get_parameter(max_radars_param).as_int());
+        // Initialize the Provizio Radar API contexts (needed in any case). max_radars is a ROS 2 parameter,
+        // i.e. settable over the DDS graph, and each context is large (an entities context embeds
+        // PROVIZIO__MAX_RADAR_ENTITIES_PER_FRAME entities), so validate it rather than resizing to whatever
+        // arrives: as_int() is signed, and a negative value would wrap into a nonsensical allocation.
+        const auto max_radars_param_value = node.get_parameter(max_radars_param).as_int();
+        if (max_radars_param_value < 1 || static_cast<std::uint64_t>(max_radars_param_value) > max_supported_radars)
+        {
+            RCLCPP_ERROR(node.get_logger(), "%s must be in [1; %ld], got %ld", max_radars_param.c_str(),
+                         static_cast<std::int64_t>(max_supported_radars),
+                         static_cast<std::int64_t>(max_radars_param_value));
+            return false;
+        }
+        const auto max_radars = static_cast<std::size_t>(max_radars_param_value);
         contexts.resize(max_radars);
         provizio_radar_point_cloud_api_contexts_init(&radar_api_ros2_wrapper_udp<node_t>::on_radar_point_cloud, this,
                                                      contexts.data(), contexts.size());
@@ -204,7 +215,11 @@ namespace provizio
         contexts.clear();
         entities_contexts.clear();
 
-        // Delete the ROS2 publishers and services
+        // Delete the ROS2 publishers and services. Note this happens *after* the receive thread has been
+        // joined above: the publisher members are read only by the API callbacks, which run on that
+        // thread, so resetting them here cannot race with a callback reading them. Keep that ordering -
+        // resetting a publisher while the receive thread is still running would be a data race on the
+        // shared_ptr itself, which taking a local copy inside the callback does not prevent.
         ros2_set_radar_range_service.reset();
         ros2_radar_pc_publisher.reset();
         ros2_radar_info_publisher.reset();
@@ -261,8 +276,7 @@ namespace provizio
         header.stamp = ns_to_ros2_time(point_cloud->timestamp);
         header.frame_id = frame_id;
 
-        auto ros2_radar_pc_publisher =
-            self.ros2_radar_pc_publisher; // So we're sure it won't be reset in another thread
+        auto ros2_radar_pc_publisher = self.ros2_radar_pc_publisher;  // Kept alive for the duration of this callback
         if (ros2_radar_pc_publisher != nullptr)
         {
             // Convert provizio_radar_point_cloud to sensor_msgs::PointCloud2
@@ -334,7 +348,7 @@ namespace provizio
         }
 
         auto ros2_radar_info_publisher =
-            self.ros2_radar_info_publisher; // So we're sure it won't be reset in another thread
+            self.ros2_radar_info_publisher;  // Kept alive for the duration of this callback
         if (ros2_radar_info_publisher != nullptr)
         {
             provizio_radar_api_ros2::msg::RadarInfo radar_info;
@@ -363,7 +377,7 @@ namespace provizio
         }
 
         auto ros2_entities_radar_publisher =
-            self.ros2_entities_radar_publisher; // So we're sure it won't be reset in another thread
+            self.ros2_entities_radar_publisher;  // Kept alive for the duration of this callback
         if (ros2_entities_radar_publisher == nullptr)
         {
             return;
