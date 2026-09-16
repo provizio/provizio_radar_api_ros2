@@ -169,11 +169,91 @@ def _do_run(
         node_cmd.append("-p")
         node_cmd.append(f"frame_id:={frame_id_filter}")
 
+    # Lifecycle state each transition can be requested from. `shutdown` is reachable from any of the
+    # three non-final states.
+    transition_start_states = {
+        "configure": ("unconfigured",),
+        "activate": ("inactive",),
+        "deactivate": ("active",),
+        "cleanup": ("inactive",),
+        "shutdown": ("unconfigured", "inactive", "active"),
+    }
+
+    def wait_for_transition(action, timeout_sec=60):
+        # `ros2 lifecycle set` talks to the node's lifecycle services, which only exist once ROS 2
+        # discovery has propagated them to the CLI's own (freshly created) node. Until then the request
+        # fails with "Node not found" or an empty transition list, which is indistinguishable from the
+        # transition genuinely being refused. So first wait until the node reports a state the transition
+        # can actually be requested from, and fail with a message saying which of the two happened.
+        # `ros2 lifecycle get` is used rather than `list` because `list` silently prints nothing (and still
+        # exits 0) when given a fully qualified "/node" name. Also bail out early if the node died, rather
+        # than waiting out the whole timeout for services that will never appear.
+        expected_states = transition_start_states[action]
+        end_time = time.time() + timeout_sec
+        last_seen = ""
+        while time.time() < end_time:
+            if driver_process is not None and driver_process.poll() is not None:
+                raise RuntimeError(
+                    f"{node_name} exited with code {driver_process.returncode} before it could {action}"
+                )
+            try:
+                state = subprocess.run(
+                    ["ros2", "lifecycle", "get", f"/{node_name}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+                last_seen = state.stdout.strip()
+                # Prints "<label> [<id>]", e.g. "inactive [2]"
+                if any(last_seen.startswith(s) for s in expected_states):
+                    return
+            except subprocess.TimeoutExpired:
+                pass
+            time.sleep(0.5)
+
+        raise RuntimeError(
+            f"{node_name} never reached a state to {action} from "
+            f"({' or '.join(expected_states)}) within {timeout_sec} sec. "
+            f"Last state seen: {last_seen or '<none>'}"
+        )
+
     def switch_node_state(action):
-        # Bound the call with `timeout`: if the node died (e.g. failed to start), `ros2 lifecycle set`
-        # would otherwise block forever waiting for a service that never appears, hanging the whole test.
-        if os.system(f"timeout 30 ros2 lifecycle set /{node_name} {action}") != 0:
-            raise RuntimeError(f"Failed to {action} {node_name}")
+        # Only request the transition once it's actually offered (see wait_for_transition). Even then the
+        # request can still lose a race: `ros2 lifecycle set` spins up its own ROS 2 node and rediscovers
+        # the target from scratch, so under slow discovery it can find no services ("Node not found") or an
+        # empty transition list ("Unknown transition requested, available ones are:" followed by nothing)
+        # even though the node is healthy. Both are "not visible yet", not "the transition failed", so
+        # retry only those two signatures - a transition the node genuinely refuses fails immediately.
+        # Bound each attempt with `timeout`: if the node dies mid-transition, `ros2 lifecycle set` would
+        # otherwise block forever waiting for a service that never returns, hanging the whole test.
+        wait_for_transition(action)
+
+        not_yet_visible = ("Unknown transition requested", "Node not found")
+        end_time = time.time() + 60
+        attempt = 0
+        while True:
+            attempt += 1
+            result = subprocess.run(
+                f"timeout 30 ros2 lifecycle set /{node_name} {action}",
+                shell=True,
+                capture_output=True,
+                text=True,
+            )
+            output = (result.stdout or "") + (result.stderr or "")
+            print(output, end="", flush=True)
+            if result.returncode == 0:
+                return
+
+            if not any(s in output for s in not_yet_visible) or time.time() >= end_time:
+                raise RuntimeError(
+                    f"Failed to {action} {node_name} (attempt {attempt}): {output.strip() or 'no output'}"
+                )
+
+            print(
+                f"{node_name} not visible to `ros2 lifecycle set` yet, retrying {action}...",
+                flush=True,
+            )
+            time.sleep(1.0)
 
     driver_process = None
     synthetic_data = None
@@ -192,12 +272,6 @@ def _do_run(
 
         # Configure and activate the node, if needed
         if lifecycle_node:
-            # First, wait for the node registration to be propagated in ROS 2
-            os.system(
-                f'timeout 20 bash -c "until ros2 lifecycle get /{node_name} | grep -q "unconfigured"; do sleep 0.1; done" || echo "Waiting for the lifecycle node timed out!"'
-            )
-
-            # Should be good to switch now
             switch_node_state("configure")
             switch_node_state("activate")
 
@@ -256,7 +330,10 @@ def _do_run(
             try:
                 driver_process.wait(timeout=30)
             except subprocess.TimeoutExpired:
-                print(f"{test_name}: node process {driver_process.pid} didn't stop on SIGINT, sending SIGKILL", flush=True)
+                print(
+                    f"{test_name}: node process {driver_process.pid} didn't stop on SIGINT, sending SIGKILL",
+                    flush=True,
+                )
                 try:
                     os.killpg(os.getpgid(driver_process.pid), signal.SIGKILL)
                 except ProcessLookupError:
