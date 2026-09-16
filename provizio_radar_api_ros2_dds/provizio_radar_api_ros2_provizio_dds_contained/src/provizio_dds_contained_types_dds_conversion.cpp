@@ -31,9 +31,9 @@ namespace provizio
         // plausible-looking range (256 -> SHORT_RANGE, 200 -> -56), which the ROS 2 client cannot tell
         // apart from a genuine answer. Anything unrecognised becomes UNKNOWN_RANGE, matching what the
         // UDP wrapper's udp_api_radar_range_to_ros2_range does.
-        constexpr std::int8_t contained_unknown_range = -1;  // RadarInfo::UNKNOWN_RANGE
-        constexpr std::uint32_t dds_unknown_range = 65535;   // radar_info_Constants::UNKNOWN_RANGE
-        constexpr std::uint32_t dds_max_known_range = 4;     // radar_info_Constants::HYPER_LONG_RANGE
+        constexpr std::int8_t contained_unknown_range = -1; // RadarInfo::UNKNOWN_RANGE
+        constexpr std::uint32_t dds_unknown_range = 65535;  // radar_info_Constants::UNKNOWN_RANGE
+        constexpr std::uint32_t dds_max_known_range = 4;    // radar_info_Constants::HYPER_LONG_RANGE
 
         std::int8_t to_contained_radar_range(const std::uint32_t dds_range)
         {
@@ -250,10 +250,8 @@ namespace provizio
         const provizio::srv::set_radar_range_Response &message)
     {
         provizio::contained_set_radar_range_response result;
-        result.header = to_contained_header(message.header());
         result.success = message.success();
         result.error_message = message.error_message();
-        result.serial_number = message.serial_number();
         result.current_range = to_contained_radar_range(message.current_range());
         const auto &supported_ranges = message.supported_ranges();
         result.supported_ranges.reserve(supported_ranges.size());

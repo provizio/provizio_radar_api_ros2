@@ -16,10 +16,13 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <string>
+#include <system_error>
 
 namespace provizio
 {
@@ -150,14 +153,33 @@ namespace provizio
             return provizio_radar_position_rear_center;
         }
 
-        try
-        {
-            return static_cast<provizio_radar_position>(std::stoul(frame_id.substr(frame_id_prefix.length())));
-        }
-        catch (const std::invalid_argument &)
+        // Anything else has to be "<prefix><number>". The frame_id reaching here comes from a ROS 2
+        // service request, i.e. from any client on the graph, so this parse must neither throw (rclcpp
+        // lets an exception escaping a service callback reach std::terminate) nor guess.
+        //
+        // std::from_chars rather than std::stoul: it does not throw, and it does not silently accept what
+        // stoul does. stoul stops at the first non-digit, so "provizio_radar_3junk" read as position 3 and
+        // "provizio_radar_1e3" as position 1; it also accepts leading whitespace and a sign, wrapping "-1"
+        // to ULONG_MAX. Requiring the whole remainder to parse keeps one frame_id from aliasing onto
+        // another radar's position.
+        if (frame_id.rfind(frame_id_prefix, 0) != 0)
         {
             return provizio_radar_position_unknown;
         }
+
+        const char *const first = frame_id.data() + frame_id_prefix.length();
+        const char *const last = frame_id.data() + frame_id.size();
+        std::uint32_t position_id = 0;
+        const auto parsed = std::from_chars(first, last, position_id);
+        if (parsed.ec != std::errc{} || parsed.ptr != last || position_id >= std::numeric_limits<std::uint16_t>::max())
+        {
+            // Not a number, trailing garbage, or too large to be a position. Note the bound is
+            // >=, not >: 0xffff is provizio_radar_position_unknown itself, which is also
+            // provizio_radar_position_any, so it must never be reachable by parsing a number.
+            return provizio_radar_position_unknown;
+        }
+
+        return static_cast<provizio_radar_position>(position_id);
     }
 
     std::int8_t udp_api_radar_range_to_ros2_range(const provizio_radar_range udp_api_radar_range)
@@ -221,8 +243,8 @@ namespace provizio
         result.is_bigendian = is_host_big_endian;
         result.point_step = sizeof(ros2_radar_entity);
 
-        const auto add_field = [&result](const std::string &name, const std::size_t offset,
-                                         const std::uint8_t datatype, const std::uint32_t count) {
+        const auto add_field = [&result](const std::string &name, const std::size_t offset, const std::uint8_t datatype,
+                                         const std::uint32_t count) {
             sensor_msgs::msg::PointField field;
             field.name = name;
             field.offset = static_cast<std::uint32_t>(offset);
@@ -243,14 +265,13 @@ namespace provizio
                   entity_orientation_num_components);
         add_field(field_size_name, offsetof(ros2_radar_entity, size), float_type, entity_size_num_components);
         add_field(field_entity_confidence_name, offsetof(ros2_radar_entity, entity_confidence), uint8_type, 1);
-        add_field(field_entity_class_confidence_name, offsetof(ros2_radar_entity, entity_class_confidence),
-                  uint8_type, 1);
+        add_field(field_entity_class_confidence_name, offsetof(ros2_radar_entity, entity_class_confidence), uint8_type,
+                  1);
 
         // Defence-in-depth: the core parser already bounds num_entities_received to radar_entities[]'s size,
         // but never index a network-sourced count without clamping it.
-        const std::uint16_t num_entities =
-            std::min(entities_frame.num_entities_received,
-                     static_cast<std::uint16_t>(PROVIZIO__MAX_RADAR_ENTITIES_PER_FRAME));
+        const std::uint16_t num_entities = std::min(entities_frame.num_entities_received,
+                                                    static_cast<std::uint16_t>(PROVIZIO__MAX_RADAR_ENTITIES_PER_FRAME));
         result.width = num_entities;
         result.data.resize(static_cast<std::size_t>(result.point_step) * num_entities);
         for (std::uint16_t i = 0; i < num_entities; ++i)
@@ -270,8 +291,7 @@ namespace provizio
             entity.size = {source.size.x_meters, source.size.y_meters, source.size.z_meters};
             entity.entity_confidence = source.entity_confidence;
             entity.entity_class_confidence = source.entity_class_confidence;
-            std::memcpy(result.data.data() + static_cast<std::size_t>(i) * result.point_step, &entity,
-                        sizeof(entity));
+            std::memcpy(result.data.data() + static_cast<std::size_t>(i) * result.point_step, &entity, sizeof(entity));
         }
         result.row_step = static_cast<decltype(result.row_step)>(result.data.size());
         result.is_dense = true;

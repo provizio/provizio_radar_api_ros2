@@ -154,12 +154,19 @@ extern "C"
 
             // Poll should_stop periodically, but never wait past the deadline: waiting a full poll
             // interval unconditionally would overshoot the caller's timeout by up to that interval and
-            // ignore timeouts shorter than it. timeout_ns is clamped because it arrives as an unsigned
-            // value over the C ABI and would otherwise overflow the signed duration into a past deadline.
+            // ignore timeouts shorter than it.
+            //
+            // timeout_ns arrives as an unsigned value over the C ABI, so it has to be bounded before it
+            // becomes a signed duration. Clamping it to nanoseconds::max() is not enough: the clamped
+            // value is then *added* to steady_clock::now(), and that addition is what overflows int64 -
+            // producing exactly the deadline in the past the clamp is there to prevent. Bound it to what
+            // can still be added to now() instead.
             constexpr auto poll_interval = std::chrono::milliseconds{100};
-            constexpr auto max_timeout = static_cast<std::uint64_t>(std::chrono::nanoseconds::max().count());  // NOLINT
+            const auto start = std::chrono::steady_clock::now();
+            const auto max_timeout =
+                static_cast<std::uint64_t>((std::chrono::nanoseconds::max() - start.time_since_epoch()).count());
             const auto deadline =
-                std::chrono::steady_clock::now() +
+                start +
                 std::chrono::nanoseconds{static_cast<std::chrono::nanoseconds::rep>(std::min(timeout_ns, max_timeout))};
             while (true)
             {
@@ -169,13 +176,14 @@ extern "C"
                 }
 
                 const auto now = std::chrono::steady_clock::now();
-                if (now >= deadline)
-                {
-                    return provizio::contained_set_radar_range_status::timed_out;
-                }
+                const auto expired = now >= deadline;
+                // Past the deadline the wait is zero rather than skipped: a response that arrived during
+                // the last poll interval is already in the future, and returning timed_out without
+                // looking would fail a request that actually succeeded.
                 const auto wait_for =
-                    std::min(poll_interval, std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now) +
-                                                std::chrono::milliseconds{1});
+                    expired ? std::chrono::nanoseconds::zero()
+                            : std::min(std::chrono::duration_cast<std::chrono::nanoseconds>(poll_interval),
+                                       std::chrono::duration_cast<std::chrono::nanoseconds>(deadline - now));
 
                 if (future.wait_for(wait_for) == std::future_status::ready)
                 {
@@ -210,6 +218,11 @@ extern "C"
                     }
 
                     return provizio::contained_set_radar_range_status::ok;
+                }
+
+                if (expired)
+                {
+                    return provizio::contained_set_radar_range_status::timed_out;
                 }
             }
         }

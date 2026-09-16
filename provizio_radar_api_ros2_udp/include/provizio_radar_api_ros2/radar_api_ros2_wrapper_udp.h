@@ -16,10 +16,18 @@
 #define PROVIZIO_RADAR_API_ROS2_RADAR_API_ROS2_WRAPPER_UDP
 
 #include <atomic>
+#include <cinttypes>
 #include <cstring>
+#include <exception>
 #include <functional>
+#include <limits>
+#include <memory>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
+#include <unordered_map>
+#include <vector>
 
 #include "provizio/radar_api/core.h"
 #include "provizio/radar_api/entities.h"
@@ -74,6 +82,7 @@ namespace provizio
             const std::shared_ptr<provizio_radar_api_ros2::srv::SetRadarRange::Request> request,
             std::shared_ptr<provizio_radar_api_ros2::srv::SetRadarRange::Response> response);
         bool filter_by_frame_id(const std::string &message_frame_id);
+        std::optional<std::uint16_t> get_udp_port_parameter(const std::string &param_name) const;
 
         // Variables
         node_t &node;
@@ -135,13 +144,41 @@ namespace provizio
                 node.get_parameter(entities_radar_ros2_topic_name_param).as_string(), default_ros2_qos);
         }
 
-        // Create services
-        if (node.get_parameter(serve_set_radar_range_param).as_bool())
+        // Undoes what activate() has created by the time it is called: the publishers, the service and
+        // the API contexts. (frame_id, snr_threshold and the process-global socket initialisation are
+        // left alone, and need no undoing - deactivate() leaves them alone too.) Returning without it
+        // would leave a node that reports itself inactive still publishing, and still answering
+        // set_radar_range with a handler that sends UDP to the radar; deactivate() cannot clean up after
+        // it either, as it returns early when there's no receive_thread, which a failed activation never
+        // creates.
+        //
+        // The radars connection is not in here, because each of the two call sites at or below the open
+        // already accounts for the socket: provizio_open_radars_connection closes its own on every one of
+        // its failures, and the thread-start failure closes it explicitly before calling this.
+        //
+        // An *uncaught* throw bypasses this - create_publisher or create_service on a bad name, or a
+        // contexts.resize() that runs out of memory. All of those are above the connection, so none can
+        // leak the socket; the lifecycle node turns the exception into a transition ERROR and the plain
+        // node's main() catches it.
+        const auto abandon_activation = [this]() {
+            contexts.clear();
+            entities_contexts.clear();
+            ros2_radar_pc_publisher.reset();
+            ros2_radar_info_publisher.reset();
+            ros2_entities_radar_publisher.reset();
+            ros2_set_radar_range_service.reset();
+
+            return false;
+        };
+
+        // The port is a ROS 2 parameter, and as_int() is a signed 64-bit value while a port is uint16:
+        // casting alone would turn 70000 into 4464 and a negative value into some large port, silently
+        // using one that was never asked for. 0 is passed through rather than rejected - the core API
+        // takes it as "use the built-in default" for this port as much as for the set-range one.
+        const auto pc_udp_port = get_udp_port_parameter(pc_udp_port_param);
+        if (!pc_udp_port.has_value())
         {
-            ros2_set_radar_range_service = node.template create_service<provizio_radar_api_ros2::srv::SetRadarRange>(
-                node.get_parameter(set_radar_range_ros2_service_name_param).as_string(),
-                std::bind(&radar_api_ros2_wrapper_udp::on_set_radar_range_request, this, std::placeholders::_1,
-                          std::placeholders::_2));
+            return abandon_activation();
         }
 
         // Initialize the Provizio Radar API contexts (needed in any case). max_radars is a ROS 2 parameter,
@@ -151,10 +188,10 @@ namespace provizio
         const auto max_radars_param_value = node.get_parameter(max_radars_param).as_int();
         if (max_radars_param_value < 1 || static_cast<std::uint64_t>(max_radars_param_value) > max_supported_radars)
         {
-            RCLCPP_ERROR(node.get_logger(), "%s must be in [1; %ld], got %ld", max_radars_param.c_str(),
+            RCLCPP_ERROR(node.get_logger(), "%s must be in [1; %" PRId64 "], got %" PRId64, max_radars_param.c_str(),
                          static_cast<std::int64_t>(max_supported_radars),
                          static_cast<std::int64_t>(max_radars_param_value));
-            return false;
+            return abandon_activation();
         }
         const auto max_radars = static_cast<std::size_t>(max_radars_param_value);
         contexts.resize(max_radars);
@@ -169,28 +206,66 @@ namespace provizio
                                                       entities_contexts.data(), entities_contexts.size());
         }
 
+        // Created before the radars connection is opened, so that the failure paths below need only undo
+        // ROS 2 objects - abandon_activation()'s job - with the socket accounted for separately by
+        // whichever of them owns it. Its handler sends UDP to the radar, so an activation that gives up
+        // must not leave it advertised: this is the only assignment to the member, and so the path that
+        // gives the lambda's reset() something to do. Keeping the socket last also keeps every
+        // *unhandled* throwing step above it - the one throwing step below it is the thread start, which
+        // is caught.
+        //
+        // On the lifecycle node the executor is already spinning, so a request can be dispatched while
+        // activate() is still running, or into an activation that then fails. That is safe: the handler
+        // never touches radar_api_connection (provizio_set_radar_range sends through a socket of its own)
+        // and the range cache it reads is mutex-guarded.
+        if (node.get_parameter(serve_set_radar_range_param).as_bool())
+        {
+            // Validated here rather than unconditionally, so a bad value fails activation only when the
+            // service that uses it is actually served. The handler re-reads it per request anyway, as it
+            // is settable at runtime; this is the fail-fast half.
+            if (!get_udp_port_parameter(set_range_udp_port_param).has_value())
+            {
+                return abandon_activation();
+            }
+
+            ros2_set_radar_range_service = node.template create_service<provizio_radar_api_ros2::srv::SetRadarRange>(
+                node.get_parameter(set_radar_range_ros2_service_name_param).as_string(),
+                std::bind(&radar_api_ros2_wrapper_udp::on_set_radar_range_request, this, std::placeholders::_1,
+                          std::placeholders::_2));
+        }
+
         // Open a live Provizio radars connection
-        auto status = provizio_open_radars_connection(
-            static_cast<uint16_t>(node.get_parameter(pc_udp_port_param).as_int()), receive_timeout_ns, 0,
-            contexts.data(), contexts.size(),
-            entities_contexts.empty() ? nullptr : entities_contexts.data(), entities_contexts.size(),
-            &radar_api_connection);
+        auto status =
+            provizio_open_radars_connection(*pc_udp_port, receive_timeout_ns, 0, contexts.data(), contexts.size(),
+                                            entities_contexts.empty() ? nullptr : entities_contexts.data(),
+                                            entities_contexts.size(), &radar_api_connection);
         if (status != 0)
         {
             RCLCPP_ERROR(node.get_logger(), "provizio_open_radars_connection failed. Error code: %d",
                          static_cast<int>(status));
-            contexts.clear();
-            entities_contexts.clear();
-            ros2_radar_pc_publisher.reset();
-            ros2_radar_info_publisher.reset();
-            ros2_entities_radar_publisher.reset();
 
-            return false;
+            return abandon_activation();
         }
 
-        // Start receiving and handling packets
+        // Start receiving and handling packets. This is the one step that can fail after the connection
+        // is open, so it has to undo the connection itself: std::thread's constructor throws
+        // std::system_error when the OS refuses another thread, and both deactivate() and the destructor
+        // key off receive_thread - which is precisely what failed to be set - so nothing else would ever
+        // close the socket. It leaks silently, as the core enables SO_REUSEADDR/SO_REUSEPORT, and on the
+        // lifecycle node a retried activation would open a second connection over the lost handle.
         stop_receiving = false;
-        receive_thread = std::make_unique<std::thread>(&radar_api_ros2_wrapper_udp::receive_loop, this);
+        try
+        {
+            receive_thread = std::make_unique<std::thread>(&radar_api_ros2_wrapper_udp::receive_loop, this);
+        }
+        catch (const std::exception &exception)
+        {
+            // Closed before logging: the log macro is the one thing here that is not formally noexcept.
+            provizio_close_radar_connection(&radar_api_connection);
+            RCLCPP_ERROR(node.get_logger(), "Failed to start the radar API receive thread: %s", exception.what());
+
+            return abandon_activation();
+        }
 
         return true;
     }
@@ -276,7 +351,7 @@ namespace provizio
         header.stamp = ns_to_ros2_time(point_cloud->timestamp);
         header.frame_id = frame_id;
 
-        auto ros2_radar_pc_publisher = self.ros2_radar_pc_publisher;  // Kept alive for the duration of this callback
+        auto ros2_radar_pc_publisher = self.ros2_radar_pc_publisher; // Kept alive for the duration of this callback
         if (ros2_radar_pc_publisher != nullptr)
         {
             // Convert provizio_radar_point_cloud to sensor_msgs::PointCloud2
@@ -347,8 +422,7 @@ namespace provizio
             self.current_radar_ranges_by_frame_id[point_cloud->radar_position_id] = ros2_range;
         }
 
-        auto ros2_radar_info_publisher =
-            self.ros2_radar_info_publisher;  // Kept alive for the duration of this callback
+        auto ros2_radar_info_publisher = self.ros2_radar_info_publisher; // Kept alive for the duration of this callback
         if (ros2_radar_info_publisher != nullptr)
         {
             provizio_radar_api_ros2::msg::RadarInfo radar_info;
@@ -363,8 +437,8 @@ namespace provizio
     }
 
     template <typename node_t>
-    void radar_api_ros2_wrapper_udp<node_t>::on_radar_entities(
-        const provizio_radar_entities_frame *entities_frame, struct provizio_radar_entities_api_context *context)
+    void radar_api_ros2_wrapper_udp<node_t>::on_radar_entities(const provizio_radar_entities_frame *entities_frame,
+                                                               struct provizio_radar_entities_api_context *context)
     {
         auto &self = *static_cast<radar_api_ros2_wrapper_udp<node_t> *>(context->user_data);
 
@@ -377,7 +451,7 @@ namespace provizio
         }
 
         auto ros2_entities_radar_publisher =
-            self.ros2_entities_radar_publisher;  // Kept alive for the duration of this callback
+            self.ros2_entities_radar_publisher; // Kept alive for the duration of this callback
         if (ros2_entities_radar_publisher == nullptr)
         {
             return;
@@ -419,6 +493,25 @@ namespace provizio
         const std::string &the_frame_id = !frame_id.empty() ? frame_id : request->header.frame_id;
 
         const auto position_id = radar_frame_id_to_position_id(the_frame_id);
+        if (position_id == provizio_radar_position_unknown && !the_frame_id.empty())
+        {
+            // A name we can't translate is refused rather than passed on, because
+            // provizio_radar_position_unknown and provizio_radar_position_any are the same value (0xffff)
+            // and the core API takes that one as "set for all radars". The set-range packet carries only
+            // radar_position_id - no serial_number, no frame_id - so there is no filtering left for the
+            // radars themselves to do: every one of them would act on it. Turning a name we don't
+            // recognise into a fleet-wide range change is this adapter inventing a request nobody made.
+            //
+            // An empty frame_id is not that, and does pass through: radar_position_id_to_frame_id() maps
+            // provizio_radar_position_unknown to "", so "" -> unknown -> any is this codebase's own
+            // round-trip, and "no particular radar" is exactly what provizio_radar_position_any means.
+            response->success = false;
+            response->actual_range = provizio_radar_api_ros2::msg::RadarInfo::UNKNOWN_RANGE;
+            response->error_message =
+                "Unrecognised frame_id \"" + the_frame_id + "\", expected one of the provizio_radar_* names";
+            RCLCPP_WARN(node.get_logger(), "Refusing a set_radar_range request: %s", response->error_message.c_str());
+            return;
+        }
 
         // Quick-set: if the radar already reports the requested range (via received point clouds), skip the
         // round-trip.
@@ -431,22 +524,44 @@ namespace provizio
 
         const auto set_range_ip_address = node.get_parameter(set_range_ip_address_param).as_string();
 
+        // Re-read rather than reuse the value validated in activate(): the parameter is settable at
+        // runtime, so it may have changed since. A bad value fails the request instead of being cast into
+        // a different, valid-looking port.
+        const auto set_range_udp_port = get_udp_port_parameter(set_range_udp_port_param);
+        if (!set_range_udp_port.has_value())
+        {
+            response->success = false;
+            response->actual_range = get_current_radar_range(position_id);
+            response->error_message = set_range_udp_port_param + " is not a valid UDP port";
+            return;
+        }
+
         // The new UDP API blocks until the radar acknowledges the request and reports its resulting range
         // (request -> acknowledgement -> response), or PROVIZIO__RADAR_API_SET_RANGE_DEFAULT_TIMEOUT elapses.
         provizio_radar_range actual_udp_range = provizio_radar_range_unknown;
         const std::int32_t status = provizio_set_radar_range(
-            position_id, ros2_range_to_udp_api_radar_range(request->target_range),
-            static_cast<std::uint16_t>(node.get_parameter(set_range_udp_port_param).as_int()),
+            position_id, ros2_range_to_udp_api_radar_range(request->target_range), *set_range_udp_port,
             set_range_ip_address.empty() ? nullptr : set_range_ip_address.c_str(), &actual_udp_range);
 
-        response->success = (status == 0);
         // supported_ranges stays empty: the UDP API doesn't expose it.
-        if (response->success)
+        if (status == 0)
         {
             response->actual_range = udp_api_radar_range_to_ros2_range(actual_udp_range);
+            // The srv contract is that success means the radar reached target_range, not merely that it
+            // answered. A radar that acknowledges the request and then settles on a different range has
+            // not done what was asked, and the DDS side already reports that as a failure (it takes
+            // success from the radar's own response field), so the two APIs would otherwise disagree.
+            response->success = (response->actual_range == request->target_range);
+            if (!response->success)
+            {
+                response->error_message = "The radar responded, but with a range other than the requested one";
+                RCLCPP_WARN(node.get_logger(), "The radar range of %s is %d after requesting %d.", the_frame_id.c_str(),
+                            static_cast<int>(response->actual_range), static_cast<int>(request->target_range));
+            }
         }
         else
         {
+            response->success = false;
             // Prefer the range the radar reported (if any), otherwise fall back to the last one seen in point
             // clouds.
             const auto reported_range = udp_api_radar_range_to_ros2_range(actual_udp_range);
@@ -466,6 +581,26 @@ namespace provizio
     bool radar_api_ros2_wrapper_udp<node_t>::filter_by_frame_id(const std::string &message_frame_id)
     {
         return this->frame_id.empty() || this->frame_id == message_frame_id;
+    }
+
+    template <typename node_t>
+    std::optional<std::uint16_t> radar_api_ros2_wrapper_udp<node_t>::get_udp_port_parameter(
+        const std::string &param_name) const
+    {
+        // Only the representable range is checked. 0 is a legitimate value the core API maps to the
+        // built-in default for that port (PROVIZIO__RADAR_API_DEFAULT_PORT when listening,
+        // PROVIZIO__RADAR_API_SET_RANGE_DEFAULT_PORT when sending), so deciding it is invalid here would
+        // be this adapter overruling the implementation it adapts. What it cannot do is let a value
+        // outside uint16 be cast into a different, valid-looking port.
+        const auto value = node.get_parameter(param_name).as_int();
+        if (value < 0 || value > std::numeric_limits<std::uint16_t>::max())
+        {
+            RCLCPP_ERROR(node.get_logger(), "%s must be in [0; %d], got %" PRId64, param_name.c_str(),
+                         static_cast<int>(std::numeric_limits<std::uint16_t>::max()), static_cast<std::int64_t>(value));
+            return std::nullopt;
+        }
+
+        return static_cast<std::uint16_t>(value);
     }
 } // namespace provizio
 

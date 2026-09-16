@@ -15,6 +15,7 @@
 #ifndef PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINED_TYPES_ROS2_CONVERSION
 #define PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINED_TYPES_ROS2_CONVERSION
 
+#include <string>
 #include <vector>
 
 #include <nav_msgs/msg/odometry.hpp>
@@ -44,7 +45,7 @@ namespace provizio
 #endif
     provizio_radar_api_ros2::msg::RadarInfo to_ros2_radar_info(provizio::contained_radar_info message);
     provizio::contained_set_radar_range to_contained_set_radar_range(
-        const provizio_radar_api_ros2::srv::SetRadarRange::Request &request);
+        const provizio_radar_api_ros2::srv::SetRadarRange::Request &request, const std::string &frame_id);
     provizio_radar_api_ros2::srv::SetRadarRange::Response to_ros2_set_radar_range_response(
         provizio::contained_set_radar_range_response message);
 } // namespace provizio

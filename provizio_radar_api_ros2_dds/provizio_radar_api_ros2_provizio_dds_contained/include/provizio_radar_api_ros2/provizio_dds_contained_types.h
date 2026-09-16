@@ -153,12 +153,14 @@ namespace provizio
         std::int8_t target_range;
     };
 
+    // Only the fields the C ABI actually marshals back (see
+    // provizio_dds_contained_request_set_radar_range). The radar's response also carries a header and a
+    // serial_number, but neither crosses the boundary, so they are deliberately absent rather than
+    // present and always default-constructed on the caller's side.
     struct contained_set_radar_range_response
     {
-        contained_header header;
         bool success{false};
         std::string error_message;
-        std::string serial_number;
         std::int8_t current_range{-1}; // provizio_radar_api_ros2::msg::RadarInfo::UNKNOWN_RANGE
         std::vector<std::int8_t> supported_ranges;
     };
@@ -167,10 +169,10 @@ namespace provizio
     // was received; check contained_set_radar_range_response::success for whether the range was set.
     enum class contained_set_radar_range_status : std::int32_t
     {
-        ok = 0,          // A response was received from the radar
-        timed_out = 1,   // No response received within the timeout
-        error = 2,       // Failed to issue the request
-        interrupted = 3  // The wait was interrupted (the node is being deactivated / shut down)
+        ok = 0,         // A response was received from the radar
+        timed_out = 1,  // No response received within the timeout
+        error = 2,      // Failed to issue the request
+        interrupted = 3 // The wait was interrupted (the node is being deactivated / shut down)
     };
 
     // The set_radar_range request/response crosses the extern "C" boundary of a library dlmopen'd into a
