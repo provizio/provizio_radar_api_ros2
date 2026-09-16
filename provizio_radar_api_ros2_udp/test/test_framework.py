@@ -170,7 +170,9 @@ def _do_run(
         node_cmd.append(f"frame_id:={frame_id_filter}")
 
     def switch_node_state(action):
-        if os.system(f"ros2 lifecycle set /{node_name} {action}") != 0:
+        # Bound the call with `timeout`: if the node died (e.g. failed to start), `ros2 lifecycle set`
+        # would otherwise block forever waiting for a service that never appears, hanging the whole test.
+        if os.system(f"timeout 30 ros2 lifecycle set /{node_name} {action}") != 0:
             raise RuntimeError(f"Failed to {action} {node_name}")
 
     driver_process = None
@@ -249,7 +251,17 @@ def _do_run(
         if synthetic_data:
             synthetic_data.wait()
         if driver_process:
-            driver_process.wait()
+            # Bound the wait and escalate to SIGKILL if the node ignores SIGINT, so a wedged node can
+            # never hang the test (and CI) indefinitely.
+            try:
+                driver_process.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                print(f"{test_name}: node process {driver_process.pid} didn't stop on SIGINT, sending SIGKILL", flush=True)
+                try:
+                    os.killpg(os.getpgid(driver_process.pid), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                driver_process.wait()
 
     # Report the results
     if test_node.success == failure_expected:

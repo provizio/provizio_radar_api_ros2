@@ -5,7 +5,7 @@ It provides both regular and [managed (lifecycle)](https://design.ros2.org/artic
 
 ## APIs Notes
 
-The primary radar API in Provizio radars is [DDS API](https://github.com/provizio/provizio_dds) - it provides full functionality and allows for flexible configuration while being completely functional out-of-box in most environments. For stricter setups, there is also [UDP API](https://github.com/provizio/provizio_radar_api_core) that requires no dynamic memory allocation, multi-threading or using other "unsafe" language features. At the moment it only provides access to the most basic functionality of Provizio radars, but may be extended in the future.
+The primary radar API in Provizio radars is [DDS API](https://github.com/provizio/provizio_dds) - it provides full functionality and allows for flexible configuration while being completely functional out-of-box in most environments. For stricter setups, there is also [UDP API](https://github.com/provizio/provizio_radar_api_core) that requires no dynamic memory allocation, multi-threading or using other "unsafe" language features. It provides access to a subset of Provizio radar functionality (radar point clouds, radar info, radar range setting and radar-based entities), and may be extended further in the future.
 
 ## DDS API Notes
 
@@ -22,7 +22,7 @@ This ROS 2 driver then can be leveraged to overcome all of these limitations. In
 - Linux (Ubuntu 20.04+ recommended, but other distributions are also supported)
 - C++-17 compatible compiler
 - CMake 3.20+
-- ROS 2 Humble+
+- ROS 2 Humble+ (continuously tested against Humble, Iron, Jazzy, Kilted and Lyrical)
 
 ### Building steps
 
@@ -84,7 +84,14 @@ General radar info: timestamp, frame id, current radar range, supported ranges, 
 
 ### Set radar(s) range
 
-Service to change the current radar range.
+Service to change the current radar range. The service performs a real request/response exchange with the
+radar (the underlying DDS API uses a `provizio_dds` request/response `service_client`, while the UDP API
+sends the request and waits for the radar's acknowledgement and completion response), so the response
+reflects the radar's actual outcome: `success`, the resulting `actual_range`, and an `error_message` on
+failure. Requests for a range the radar is already using are served immediately from the latest radar info
+without a round-trip. `supported_ranges` is populated only by the DDS API on a full round-trip - it is
+empty for such cache-served (quick-set) requests, on timeout, and always for the UDP API (which doesn't
+expose it).
 
 - Supported with `PROVIZIO_RADAR_API`: `dds`, `udp`.
 - Service Type: [provizio_radar_api_ros2/srv/SetRadarRange.srv](srv/SetRadarRange.srv).
@@ -104,7 +111,7 @@ Odometry based on radar data.
 
 Entities (objects) detection based on radar data.
 
-- Supported with `PROVIZIO_RADAR_API`: `dds`.
+- Supported with `PROVIZIO_RADAR_API`: `dds`, `udp`.
 - Message Type: [sensor_msgs/msg/PointCloud2](https://docs.ros2.org/latest/api/sensor_msgs/msg/PointCloud2.html). [Additional details](https://github.com/provizio/provizio_dds_idls/blob/develop/TOPICS.md#entities-fields).
 - Enable parameter (bool): `publish_entities_radar`. Default: `true`.
 - ROS 2 topic name parameter (string): `entities_radar_topic`. Default: `/provizio/entities/radar`.

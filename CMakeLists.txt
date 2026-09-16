@@ -6,8 +6,8 @@ set(PROVIZIO_CODING_STANDARDS_VERSION "1.10.1" CACHE STRING "provizio/coding_sta
 set(BUILD_SIMPLE_NODE ON CACHE BOOL "Enable building of provizio_radar_api_ros2_node")
 set(BUILD_LIFECYCLE_NODE ON CACHE BOOL "Enable building of provizio_radar_api_ros2_lifecycle_node")
 set(PROVIZIO_RADAR_API "dds" CACHE STRING "Underlying Provizio radar API: dds / udp")
-set(PROVIZIO_DDS_VERSION "1.9.1" CACHE STRING "provizio_dds version (for dds API)")
-set(PROVIZIO_API_CORE_VERSION "v2024.04.16" CACHE STRING "provizio_radar_api_core version (for udp API)")
+set(PROVIZIO_DDS_VERSION "2.0.4" CACHE STRING "provizio_dds version (for dds API)")
+set(PROVIZIO_API_CORE_VERSION "1.11.0" CACHE STRING "provizio_radar_api_core version (for udp API)")
 
 set(PROJECT "provizio_radar_api_ros2")
 set(NODES_BASE_NAME "provizio_radar")
@@ -54,6 +54,26 @@ function(declare_system_library target)
   endif(target_aliased_name)
   set_target_properties(${target} PROPERTIES INTERFACE_SYSTEM_INCLUDE_DIRECTORIES $<TARGET_PROPERTY:${target},INTERFACE_INCLUDE_DIRECTORIES>)
 endfunction()
+
+# ament_target_dependencies was removed in newer ROS 2 (e.g. Lyrical, ament_cmake 2.8+). Provide a
+# compatible shim over modern CMake target variables (<pkg>_TARGETS) so the same CMakeLists builds across
+# Humble..Lyrical. It's only defined when the built-in command is absent, so distros that still ship
+# ament_target_dependencies keep their exact behaviour.
+if(NOT COMMAND ament_target_dependencies)
+    function(ament_target_dependencies target)
+        set(dependency_targets "")
+        foreach(argument ${ARGN})
+            if(NOT argument MATCHES "^(SYSTEM|PUBLIC|PRIVATE|INTERFACE)$")
+                foreach(dependency_target ${${argument}_TARGETS})
+                    list(APPEND dependency_targets ${dependency_target})
+                    # Keep the dependency's headers "system" to avoid warnings-as-errors from ROS 2 headers
+                    declare_system_library(${dependency_target})
+                endforeach()
+            endif()
+        endforeach()
+        target_link_libraries(${target} PUBLIC ${dependency_targets})
+    endfunction()
+endif()
 
 # Message/service types
 rosidl_generate_interfaces(

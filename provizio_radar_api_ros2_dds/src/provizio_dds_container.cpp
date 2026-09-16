@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
+#include <array>
 #include <cassert>
+#include <cstddef>
+#include <cstdint>
 #include <link.h>
 #include <mutex>
 #include <stdexcept>
@@ -161,17 +165,47 @@ namespace provizio
         return (*the_function)(domain_participant, topic_name, on_message, context);
     }
 
-    std::shared_ptr<void> make_dds_publisher_set_radar_range(const std::shared_ptr<void> &domain_participant,
-                                                             const std::string &topic_name)
+    std::shared_ptr<void> make_dds_service_client_set_radar_range(const std::shared_ptr<void> &domain_participant,
+                                                                  const std::string &service_name)
     {
-        GET_CONTAINED_FUNCTION(provizio_dds_contained_make_publisher_set_radar_range, the_function);
-        return (*the_function)(domain_participant, topic_name);
+        GET_CONTAINED_FUNCTION(provizio_dds_contained_make_service_client_set_radar_range, the_function);
+        return (*the_function)(domain_participant, service_name);
     }
 
-    bool dds_publish_set_radar_range(const std::shared_ptr<void> &publisher,
-                                     provizio::contained_set_radar_range message)
+    contained_set_radar_range_status dds_request_set_radar_range(const std::shared_ptr<void> &service_client,
+                                                                 contained_set_radar_range request,
+                                                                 const std::uint64_t timeout_ns,
+                                                                 std::atomic<bool> *const should_stop,
+                                                                 contained_set_radar_range_response &out_response)
     {
-        GET_CONTAINED_FUNCTION(provizio_dds_contained_publish_set_radar_range, the_function);
-        return (*the_function)(publisher, std::move(message));
+        GET_CONTAINED_FUNCTION(provizio_dds_contained_request_set_radar_range, the_function);
+
+        // Marshal request/response as C strings + POD across the extern "C" boundary: std::string /
+        // std::vector must not cross into the contained library's separate C++ runtime / heap namespace.
+        std::array<char, contained_set_radar_range_error_message_capacity> error_message{};
+        std::array<std::int8_t, contained_set_radar_range_max_supported_ranges> supported_ranges{};
+        bool success = false;
+        std::int8_t current_range = -1; // provizio_radar_api_ros2::msg::RadarInfo::UNKNOWN_RANGE
+        std::size_t num_supported_ranges = 0;
+
+        const auto status = (*the_function)(
+            service_client, request.header.frame_id.c_str(), request.serial_number.c_str(), request.target_range,
+            request.header.stamp.sec, request.header.stamp.nanosec, timeout_ns, should_stop, &success, &current_range,
+            error_message.data(), supported_ranges.data(), &num_supported_ranges);
+
+        if (status == contained_set_radar_range_status::ok)
+        {
+            // num_supported_ranges is written by the dlmopen'd contained library; clamp it to the buffer
+            // capacity before using it to form an iterator, never trusting a cross-boundary count blindly.
+            const std::size_t num_ranges = std::min(num_supported_ranges, supported_ranges.size());
+            out_response = contained_set_radar_range_response{};
+            out_response.success = success;
+            out_response.current_range = current_range;
+            out_response.error_message = error_message.data(); // null-terminated by the contained library
+            out_response.supported_ranges.assign(supported_ranges.begin(),
+                                                  supported_ranges.begin() + static_cast<std::ptrdiff_t>(num_ranges));
+        }
+
+        return status;
     }
 } // namespace provizio

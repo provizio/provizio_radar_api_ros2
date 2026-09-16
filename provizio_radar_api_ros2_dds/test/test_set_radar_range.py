@@ -21,7 +21,10 @@ import threading
 import time
 
 DDS_DOMAIN_ID = 26
-TIMEOUT_SEC = 2.0
+# Generous enough for a fast set-range round-trip: the "quick-set" short-circuit relies on the radar_info
+# cache being warm, which can lag node startup by a second or two on slower RMWs/runners; until then the
+# request does a full (still quick) request/response round-trip, which must not spuriously time out.
+TIMEOUT_SEC = 10.0
 TIMEOUT_SEC_LONG = 38.0  # As failure to set a range takes 30 seconds
 TOTAL_TEST_TIMEOUT = (
     TIMEOUT_SEC_LONG * 5
@@ -35,6 +38,14 @@ SET_RANGE_OK_FAST = RadarInfo.SHORT_RANGE
 SET_RANGE_OK_SLOW = RadarInfo.LONG_RANGE
 SET_RANGE_FAIL = RadarInfo.ULTRA_LONG_RANGE
 SET_RANGE_DROP = RadarInfo.HYPER_LONG_RANGE
+# Ranges the synthetic radar reports as supported in its set_radar_range response
+EXPECTED_SUPPORTED_RANGES = [
+    RadarInfo.SHORT_RANGE,
+    RadarInfo.MEDIUM_RANGE,
+    RadarInfo.LONG_RANGE,
+    RadarInfo.ULTRA_LONG_RANGE,
+    RadarInfo.HYPER_LONG_RANGE,
+]
 
 
 def report(message):
@@ -81,6 +92,24 @@ class TestNode(test_framework.Node):
     def got_response(self):
         report(f"Response received in {time.time() - self.request_time} sec")
 
+    def check_response(
+        self, response, expected_range, expected_success, expected_supported_ranges=None
+    ):
+        self.check_value("response.actual_range", response.actual_range, expected_range)
+        self.check_value("response.success", response.success, expected_success)
+        if expected_success:
+            self.check_value(
+                "response.error_message (empty on success)", response.error_message, ""
+            )
+        elif not response.error_message:
+            self.fail_with_message("Expected a non-empty error_message on failure")
+        if expected_supported_ranges is not None:
+            self.check_value(
+                "response.supported_ranges",
+                list(response.supported_ranges),
+                expected_supported_ranges,
+            )
+
     def start_tests(self):
         for i in range(WAIT_FOR_SERVICE_RETRIES):
             if self.client.wait_for_service(WAIT_FOR_SERVICE_TIMEOUT):
@@ -114,9 +143,9 @@ class TestNode(test_framework.Node):
         response = result_with_timeout(self.client.call_async(request))
         self.got_response()
 
-        self.check_value(
-            "response.actual_range", response.actual_range, request.target_range
-        )
+        # This may be served via the wrapper's quick-set short-circuit (no round-trip), which doesn't
+        # populate supported_ranges, so only actual_range/success are checked here.
+        self.check_response(response, request.target_range, expected_success=True)
 
         self.successful_messages += 1
         return True
@@ -131,8 +160,11 @@ class TestNode(test_framework.Node):
         response = result_with_timeout(self.client.call_async(request))
         self.got_response()
 
-        self.check_value(
-            "response.actual_range", response.actual_range, request.target_range
+        self.check_response(
+            response,
+            request.target_range,
+            expected_success=True,
+            expected_supported_ranges=EXPECTED_SUPPORTED_RANGES,
         )
 
         self.successful_messages += 1
@@ -150,8 +182,11 @@ class TestNode(test_framework.Node):
         )
         self.got_response()
 
-        self.check_value(
-            "response.actual_range", response.actual_range, request.target_range
+        self.check_response(
+            response,
+            request.target_range,
+            expected_success=True,
+            expected_supported_ranges=EXPECTED_SUPPORTED_RANGES,
         )
 
         self.successful_messages += 1
@@ -171,8 +206,12 @@ class TestNode(test_framework.Node):
         )
         self.got_response()
 
-        self.check_value(
-            "response.actual_range", response.actual_range, previous_test_range
+        # The radar received the request and refused it, so it still reports its supported ranges.
+        self.check_response(
+            response,
+            previous_test_range,
+            expected_success=False,
+            expected_supported_ranges=EXPECTED_SUPPORTED_RANGES,
         )
 
         self.successful_messages += 1
@@ -192,9 +231,9 @@ class TestNode(test_framework.Node):
         )
         self.got_response()
 
-        self.check_value(
-            "response.actual_range", response.actual_range, previous_test_range
-        )
+        # No response came back (dropped), so the wrapper reports the last known range with success=false
+        # and an error_message; supported_ranges stays empty (nothing was received to populate it).
+        self.check_response(response, previous_test_range, expected_success=False)
 
         self.successful_messages += 1
         return True
@@ -219,12 +258,8 @@ class TestNode(test_framework.Node):
         response2 = result_with_timeout(future2)
         self.got_response()
 
-        self.check_value(
-            "response1.actual_range", response1.actual_range, request1.target_range
-        )
-        self.check_value(
-            "response2.actual_range", response2.actual_range, request2.target_range
-        )
+        self.check_response(response1, request1.target_range, expected_success=True)
+        self.check_response(response2, request2.target_range, expected_success=True)
 
         self.successful_messages += 1
         return True

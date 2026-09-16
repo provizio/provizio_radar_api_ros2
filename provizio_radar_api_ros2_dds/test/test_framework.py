@@ -185,7 +185,9 @@ def _do_run(
     scripts_location = pathlib.Path(__file__).parent.resolve()
 
     def switch_node_state(action):
-        if os.system(f"ros2 lifecycle set /{node_name} {action}") != 0:
+        # Bound the call with `timeout`: if the node died (e.g. failed to start), `ros2 lifecycle set`
+        # would otherwise block forever waiting for a service that never appears, hanging the whole test.
+        if os.system(f"timeout 30 ros2 lifecycle set /{node_name} {action}") != 0:
             raise RuntimeError(f"Failed to {action} {node_name}")
 
     driver_process = None
@@ -264,11 +266,20 @@ def _do_run(
             # Stop the provizio radar node
             os.killpg(os.getpgid(driver_process.pid), signal.SIGINT)
 
-        # Wait till both are stopped:
-        if synthetic_data_process:
-            synthetic_data_process.wait()
-        if driver_process:
-            driver_process.wait()
+        # Wait till both are stopped. Bound each wait and escalate to SIGKILL if a process ignores SIGINT,
+        # so a wedged node/synthetic-data process can never hang the test (and CI) indefinitely.
+        for process in (synthetic_data_process, driver_process):
+            if not process:
+                continue
+            try:
+                process.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                print(f"{test_name}: process {process.pid} didn't stop on SIGINT, sending SIGKILL", flush=True)
+                try:
+                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.wait()
 
     # Report the results
     if test_node.success == failure_expected:

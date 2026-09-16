@@ -45,6 +45,8 @@ namespace provizio
     provizio_radar_api_ros2::msg::RadarInfo to_ros2_radar_info(provizio::contained_radar_info message);
     provizio::contained_set_radar_range to_contained_set_radar_range(
         const provizio_radar_api_ros2::srv::SetRadarRange::Request &request);
+    provizio_radar_api_ros2::srv::SetRadarRange::Response to_ros2_set_radar_range_response(
+        provizio::contained_set_radar_range_response message);
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINED_TYPES_ROS2_CONVERSION

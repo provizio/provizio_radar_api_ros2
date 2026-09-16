@@ -23,9 +23,17 @@ namespace provizio
     const std::string field_radar_relative_radial_velocity_name = "radar_relative_radial_velocity";
     const std::string field_signal_to_noise_ratio_name = "signal_to_noise_ratio";
     const std::string field_ground_relative_radial_velocity_name = "ground_relative_radial_velocity";
+    const std::string field_entity_id_name = "entity_id";
+    const std::string field_entity_class_name = "entity_class";
+    const std::string field_orientation_name = "orientation";
+    const std::string field_size_name = "size";
+    const std::string field_entity_confidence_name = "entity_confidence";
+    const std::string field_entity_class_confidence_name = "entity_class_confidence";
     const std::string max_radars_param = "max_radars";
     const std::string pc_udp_port_param = "point_clouds_udp_port";
     const std::string set_range_udp_port_param = "set_range_udp_port";
     const std::string set_range_ip_address_param = "set_range_ip_address";
+    const std::string publish_entities_radar_param = "publish_entities_radar";
+    const std::string entities_radar_ros2_topic_name_param = "entities_radar_topic";
     // NOLINTEND
 } // namespace provizio

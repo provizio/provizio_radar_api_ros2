@@ -296,4 +296,15 @@ namespace provizio
         result.target_range = request.target_range;
         return result;
     }
+
+    provizio_radar_api_ros2::srv::SetRadarRange::Response to_ros2_set_radar_range_response(
+        provizio::contained_set_radar_range_response message)
+    {
+        provizio_radar_api_ros2::srv::SetRadarRange::Response result;
+        result.actual_range = message.current_range;
+        result.success = message.success;
+        result.error_message = std::move(message.error_message);
+        result.supported_ranges = std::move(message.supported_ranges);
+        return result;
+    }
 } // namespace provizio

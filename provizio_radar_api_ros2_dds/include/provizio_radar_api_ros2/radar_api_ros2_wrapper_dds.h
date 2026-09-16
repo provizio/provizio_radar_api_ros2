@@ -15,8 +15,8 @@
 #ifndef PROVIZIO_RADAR_API_ROS2_RADAR_API_ROS2_WRAPPER_DDS
 #define PROVIZIO_RADAR_API_ROS2_RADAR_API_ROS2_WRAPPER_DDS
 
+#include <atomic>
 #include <chrono>
-#include <condition_variable>
 #include <functional>
 #include <mutex>
 #include <unordered_map>
@@ -127,7 +127,7 @@ namespace provizio
             ros2_camera_freespace_instance_publisher;
 #endif
         std::shared_ptr<rclcpp::Publisher<provizio_radar_api_ros2::msg::RadarInfo>> ros2_radar_info_publisher;
-        std::shared_ptr<void> dds_set_radar_range_publisher;
+        std::shared_ptr<void> dds_set_radar_range_client;
 
         std::shared_ptr<void> dds_radar_pc_subscriber;
         std::shared_ptr<void> dds_radar_pc_sr_subscriber;
@@ -141,9 +141,10 @@ namespace provizio
         std::shared_ptr<void> dds_radar_info_subscriber;
 
         std::shared_ptr<rclcpp::Service<provizio_radar_api_ros2::srv::SetRadarRange>> ros2_set_radar_range_service;
-        bool stop_ros2_set_radar_range_service{false};
+        // Set on deactivate() to interrupt an in-flight set_radar_range request instead of blocking up to
+        // max_time_to_set_radar_range.
+        std::atomic<bool> stop_set_radar_range{false};
 
-        std::condition_variable current_radar_ranges_cv;
         std::mutex current_radar_ranges_mutex;
         std::unordered_map<std::string, std::int8_t> current_radar_ranges_by_frame_id;
         std::unordered_map<std::string, std::int8_t> current_radar_ranges_by_serial_number;
@@ -293,9 +294,9 @@ namespace provizio
 
         if (node.get_parameter(serve_set_radar_range_param).as_bool())
         {
-            dds_set_radar_range_publisher =
-                make_dds_publisher_set_radar_range(dds_domain_participant, set_radar_range_dds_topic_name);
-            stop_ros2_set_radar_range_service = false;
+            dds_set_radar_range_client =
+                make_dds_service_client_set_radar_range(dds_domain_participant, set_radar_range_dds_service_name);
+            stop_set_radar_range = false;
             ros2_set_radar_range_service = node.template create_service<provizio_radar_api_ros2::srv::SetRadarRange>(
                 node.get_parameter(set_radar_range_ros2_service_name_param).as_string(),
                 std::bind(&radar_api_ros2_wrapper_dds::on_set_radar_range_request, this, std::placeholders::_1,
@@ -314,12 +315,8 @@ namespace provizio
             return false;
         }
 
-        // Destroy the services
-        {
-            std::lock_guard<std::mutex> lock{current_radar_ranges_mutex};
-            stop_ros2_set_radar_range_service = true;
-        }
-        current_radar_ranges_cv.notify_all(); // To stop waiting for radar range setting, if waiting
+        // Destroy the services. Signal any in-flight set_radar_range request to stop waiting first.
+        stop_set_radar_range = true;
         ros2_set_radar_range_service.reset();
 
         // Destroy the subscribers first so none of them tries to publish with destroyed publishers
@@ -348,7 +345,7 @@ namespace provizio
         ros2_camera_freespace_instance_publisher.reset();
 #endif
         ros2_radar_info_publisher.reset();
-        dds_set_radar_range_publisher.reset();
+        dds_set_radar_range_client.reset();
 
         // dds_domain_participant
         dds_domain_participant.reset();
@@ -546,7 +543,6 @@ namespace provizio
                 self.current_radar_ranges_by_serial_number[message.serial_number] = message.current_range;
             }
         }
-        self.current_radar_ranges_cv.notify_all();
 
         auto publisher = self.ros2_radar_info_publisher; // To make sure it can't be destroyed by another thread
                                                          // during this call
@@ -561,10 +557,10 @@ namespace provizio
         const std::shared_ptr<provizio_radar_api_ros2::srv::SetRadarRange::Request> request,
         std::shared_ptr<provizio_radar_api_ros2::srv::SetRadarRange::Response> response)
     {
-        std::unique_lock<std::mutex> lock{current_radar_ranges_mutex};
-
-        auto get_current_radar_range = [this](const std::string &frame_id, const std::string &serial_number)
+        const auto get_current_radar_range = [this](const std::string &frame_id, const std::string &serial_number)
         {
+            std::lock_guard<std::mutex> lock{current_radar_ranges_mutex};
+
             if (!serial_number.empty())
             {
                 auto it = current_radar_ranges_by_serial_number.find(serial_number);
@@ -578,7 +574,7 @@ namespace provizio
             auto it = current_radar_ranges_by_frame_id.find(frame_id);
             if (it == current_radar_ranges_by_frame_id.end())
             {
-                return provizio_radar_api_ros2::msg::RadarInfo::UNKNOWN_RANGE;
+                return static_cast<std::int8_t>(provizio_radar_api_ros2::msg::RadarInfo::UNKNOWN_RANGE);
             }
 
             return it->second;
@@ -593,26 +589,45 @@ namespace provizio
         const auto &frame_id = !this->frame_id.empty() ? this->frame_id : request->header.frame_id;
         const auto &serial_number = request->serial_number;
 
+        // Quick-set: if the radar already reports the requested range (via radar_info), skip the round-trip.
         if (get_current_radar_range(frame_id, serial_number) == request->target_range)
         {
-            // Already set
             response->actual_range = request->target_range;
+            response->success = true;
             return;
         }
 
-        if (dds_publish_set_radar_range(dds_set_radar_range_publisher, to_contained_set_radar_range(*request)))
+        // Issue a request/response call to the radar's set_radar_range service and wait for its response.
+        // Copy the client to a local first so it can't be reset by deactivate() on another thread mid-call.
+        auto client = dds_set_radar_range_client;
+        provizio::contained_set_radar_range_response contained_response;
+        const auto status = dds_request_set_radar_range(
+            client, to_contained_set_radar_range(*request),
+            static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(max_time_to_set_radar_range).count()),
+            &stop_set_radar_range, contained_response);
+
+        if (status == provizio::contained_set_radar_range_status::ok)
         {
-            current_radar_ranges_cv.wait_for(lock, max_time_to_set_radar_range, [&]()
-                                             { return stop_ros2_set_radar_range_service ||
-                                                      get_current_radar_range(frame_id, serial_number) == request->target_range; });
+            *response = to_ros2_set_radar_range_response(std::move(contained_response));
+            if (!response->success && response->error_message.empty())
+            {
+                // The radar reported a failure without a reason; keep the srv contract's error_message populated
+                response->error_message = "The radar could not set the requested range";
+            }
         }
         else
         {
-            RCLCPP_ERROR(node.get_logger(), "Failed to publish set_radar_range message!");
+            // No response from the radar (timed out or interrupted on shutdown): report the last known range.
+            response->success = false;
+            response->actual_range = get_current_radar_range(frame_id, serial_number);
+            response->error_message =
+                (status == provizio::contained_set_radar_range_status::timed_out)
+                    ? "Timed out waiting for the radar to respond to the set range request"
+                    : "Failed to issue the set range request";
         }
 
-        response->actual_range = get_current_radar_range(frame_id, serial_number);
-        if (response->actual_range != request->target_range)
+        if (!response->success)
         {
             RCLCPP_WARN(node.get_logger(), "Failed to change the radar range of %s to %d. The radar range stays %d.",
                         request->header.frame_id.c_str(), static_cast<int>(request->target_range),
