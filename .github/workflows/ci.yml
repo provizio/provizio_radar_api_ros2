@@ -16,6 +16,10 @@ jobs:
     name: Build with static analysis and test
     runs-on: ${{matrix.runner}}
     strategy:
+      # One job failing must not cancel the rest of the matrix. The combinations are independent, and
+      # a single transient failure - a Docker Hub token fetch reset by the registry, say - would
+      # otherwise cancel well over a hundred unrelated jobs and hide whatever else was broken.
+      fail-fast: false
       matrix:
         runner: [ubuntu-latest, jetson-18.04]
         ros: [humble, iron, jazzy, kilted, lyrical]
@@ -23,10 +27,24 @@ jobs:
         cc: [gcc, clang]
         api: [dds, udp]
         build_type: [Debug, Release]
+    # packages: read is what lets the base image come from the org's GHCR mirror rather than from
+    # Docker Hub, whose anonymous pull limit is per source IP and which this matrix cannot stay under.
+    permissions:
+      contents: read
+      packages: read
     env:
       STATIC_ANALYSIS: ON
+      BASE_IMAGE_REPO: ghcr.io/${{github.repository_owner}}/ros
+      # Docker Hub, used only if the mirror above cannot be pulled. test.sh prints which one it
+      # actually used and raises a workflow warning when it falls back, so a mirror that is broken or
+      # misconfigured shows up as a warning on every job rather than passing silently.
+      BASE_IMAGE_FALLBACK_REPO: ros
+      GHCR_USER: ${{github.actor}}
+      GHCR_TOKEN: ${{secrets.GITHUB_TOKEN}}
     steps:
       - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        run: echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
       - run: .github/workflows/test.sh ${{matrix.ros}} ${{matrix.cc}} ${{matrix.api}} ${{matrix.build_type}} ${{matrix.ros_rmw}} ${STATIC_ANALYSIS}
       - name: Docker Cleanup
         if: always()
