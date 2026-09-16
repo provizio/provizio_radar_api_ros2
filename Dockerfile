@@ -19,8 +19,14 @@
 ARG ROS_DISTRO=jazzy
 ARG CC=gcc
 ARG STATIC_ANALYSIS=OFF
+# Where the ros:<distro> base image is pulled from. Defaults to Docker Hub, so a local build needs no
+# credentials and behaves as it always has. CI overrides it with this org's mirror on GHCR: Docker
+# Hub limits anonymous pulls per source IP, and the CI matrix pulls a base image well over a hundred
+# times per run - from hosted runners whose egress IP is shared with everyone else, and from a
+# self-hosted runner with one fixed IP.
+ARG BASE_IMAGE_REPO=ros
 
-FROM ros:${ROS_DISTRO}
+FROM ${BASE_IMAGE_REPO}:${ROS_DISTRO}
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WORKSPACE_DIR=/opt/test_workspace

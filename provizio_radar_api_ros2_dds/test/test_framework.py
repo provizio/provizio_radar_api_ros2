@@ -17,6 +17,8 @@
 from enum import Enum
 import os
 import pathlib
+from lifecycle_msgs.msg import State, Transition
+from lifecycle_msgs.srv import ChangeState, GetState
 import rclpy
 import rclpy.node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
@@ -24,6 +26,8 @@ import signal
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs_py.point_cloud2 as pc2
 import subprocess
+import sys
+import threading
 import time
 from collections import namedtuple
 from typing import Iterable, List, NamedTuple, Optional
@@ -139,6 +143,165 @@ class RunNodes(Enum):
     LIFECYCLE = 3
 
 
+
+
+
+# Lifecycle transition ids by the action name this harness uses. "shutdown" is deliberately absent:
+# which shutdown transition is valid depends on where the node currently is, see _SHUTDOWN_TRANSITIONS.
+_LIFECYCLE_TRANSITIONS = {
+    "configure": Transition.TRANSITION_CONFIGURE,
+    "cleanup": Transition.TRANSITION_CLEANUP,
+    "activate": Transition.TRANSITION_ACTIVATE,
+    "deactivate": Transition.TRANSITION_DEACTIVATE,
+}
+
+_SHUTDOWN_TRANSITIONS = {
+    State.PRIMARY_STATE_UNCONFIGURED: Transition.TRANSITION_UNCONFIGURED_SHUTDOWN,
+    State.PRIMARY_STATE_INACTIVE: Transition.TRANSITION_INACTIVE_SHUTDOWN,
+    State.PRIMARY_STATE_ACTIVE: Transition.TRANSITION_ACTIVE_SHUTDOWN,
+}
+
+# Where each action is meant to leave the node. Reaching it is the definition of success, so an
+# action whose node is already there is a no-op rather than an invalid request.
+_STATE_AFTER = {
+    "configure": State.PRIMARY_STATE_INACTIVE,
+    "cleanup": State.PRIMARY_STATE_UNCONFIGURED,
+    "activate": State.PRIMARY_STATE_ACTIVE,
+    "deactivate": State.PRIMARY_STATE_INACTIVE,
+    "shutdown": State.PRIMARY_STATE_FINALIZED,
+}
+
+
+class _LifecycleController:
+    """Drives a managed node's transitions over its own lifecycle services.
+
+    This replaces shelling out to `ros2 lifecycle set`, which is not reliable under load. That CLI
+    creates a ROS 2 node and rediscovers the target from scratch on every single call, and when the
+    rediscovery loses a race it reports "Transitioning failed" for a transition the node's own log
+    shows completing. The harness would then retry, find the node somewhere other than where it
+    thought, and report "Unknown transition requested, available ones are:" with an empty list -
+    which reads like the node refusing a transition when nothing of the sort happened.
+
+    Two changes fix that. One client is held for the whole run, so discovery happens once instead of
+    per transition. And the node's own reported state is the authority on whether a transition is
+    needed and whether it worked, rather than the exit status of a CLI that may have simply missed
+    the answer.
+    """
+
+    def __init__(self, node_name, timeout_sec=60.0):
+        self._node_name = node_name
+        self._timeout_sec = timeout_sec
+        self._node = rclpy.create_node(f"{node_name}_lifecycle_controller")
+        self._get_state = self._node.create_client(GetState, f"/{node_name}/get_state")
+        self._change_state = self._node.create_client(
+            ChangeState, f"/{node_name}/change_state"
+        )
+
+    def destroy(self):
+        self._node.destroy_node()
+
+    def _call(self, client, request, timeout_sec):
+        """Calls one service, returning None rather than raising if it does not answer in time."""
+        if not client.wait_for_service(timeout_sec=timeout_sec):
+            return None
+
+        future = client.call_async(request)
+        rclpy.spin_until_future_complete(self._node, future, timeout_sec=timeout_sec)
+        if not future.done():
+            future.cancel()
+            return None
+
+        return future.result()
+
+    def state(self, timeout_sec=15.0):
+        """The node's current primary state id, or None if it did not answer."""
+        response = self._call(self._get_state, GetState.Request(), timeout_sec)
+        return response.current_state.id if response is not None else None
+
+    def switch(self, action, driver_process=None):
+        """Brings the node to the state `action` denotes, or raises if it cannot within the timeout."""
+        target = _STATE_AFTER[action]
+        end_time = time.time() + self._timeout_sec
+        last_state = None
+
+        while True:
+            if driver_process is not None and driver_process.poll() is not None:
+                raise RuntimeError(
+                    f"{self._node_name} exited with code {driver_process.returncode} "
+                    f"before it could {action}"
+                )
+
+            last_state = self.state()
+            if last_state == target:
+                return
+
+            if last_state is not None:
+                transition = (
+                    _SHUTDOWN_TRANSITIONS.get(last_state)
+                    if action == "shutdown"
+                    else _LIFECYCLE_TRANSITIONS.get(action)
+                )
+                if transition is not None:
+                    request = ChangeState.Request()
+                    request.transition.id = transition
+                    self._call(self._change_state, request, timeout_sec=30.0)
+                    # The response is deliberately not trusted on its own: the loop re-reads the
+                    # state, which is the only thing that actually says whether the node moved.
+
+            if time.time() >= end_time:
+                raise RuntimeError(
+                    f"{self._node_name} did not reach the state to {action} within "
+                    f"{self._timeout_sec} sec (last state id seen: {last_state})"
+                )
+
+            time.sleep(0.25)
+
+def _bounded_rclpy_teardown(test_name, test_node, processes, timeout_sec=30.0):
+    """Tears the rclpy side down, but never waits on it forever.
+
+    destroy_node() and try_shutdown() can wedge inside the RMW. Observed on lyrical +
+    rmw_fastrtps_cpp: a test whose messages never arrived timed out, and the teardown that followed
+    never returned - two CI jobs sat for hours until the job limit killed them. Every test in this
+    suite runs in this one process, so one wedged teardown takes the whole run with it, and the
+    subprocess teardown that was already bounded never even got the chance to run.
+
+    A teardown that does not finish is not something to carry on from: rclpy is left half shut down,
+    so the next rclpy.init() would likely wedge in the same place and the run would hang anyway,
+    just later and with a more confusing log. So say plainly what happened, take the child processes
+    down, and exit non-zero - a fast, diagnosable failure instead of a silent multi-hour stall.
+    """
+    finished = threading.Event()
+
+    def teardown():
+        try:
+            test_node.destroy_node()
+            rclpy.try_shutdown()
+        finally:
+            finished.set()
+
+    threading.Thread(
+        target=teardown, name=f"{test_name}-rclpy-teardown", daemon=True
+    ).start()
+
+    if finished.wait(timeout_sec):
+        return
+
+    print(
+        f"{test_name}: rclpy teardown did not complete within {timeout_sec} sec - the RMW is wedged. "
+        "Failing the run rather than waiting: every test shares this process, so nothing after this "
+        "would be trustworthy.",
+        flush=True,
+    )
+    for process in processes:
+        if process and process.poll() is None:
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(1)
+
 def _do_run(
     test_name,
     synthetic_data_dds_args,
@@ -184,11 +347,10 @@ def _do_run(
     )
     scripts_location = pathlib.Path(__file__).parent.resolve()
 
-    def switch_node_state(action):
-        if os.system(f"ros2 lifecycle set /{node_name} {action}") != 0:
-            raise RuntimeError(f"Failed to {action} {node_name}")
-
+    # Lifecycle state each transition can be requested from. `shutdown` is reachable from any of the
+    # three non-final states.
     driver_process = None
+    lifecycle = None
     synthetic_data_process = None
     try:
         # Start the driver node
@@ -209,14 +371,9 @@ def _do_run(
 
         # Configure and activate the node, if needed
         if lifecycle_node:
-            # First, wait for the node registration to be propagated in ROS 2
-            os.system(
-                f'timeout 20 bash -c "until ros2 lifecycle get /{node_name} | grep -q "unconfigured"; do sleep 0.1; done" || echo "Waiting for the lifecycle node timed out!"'
-            )
-
-            # Should be good to switch now
-            switch_node_state("configure")
-            switch_node_state("activate")
+            lifecycle = _LifecycleController(node_name)
+            lifecycle.switch("configure", driver_process)
+            lifecycle.switch("activate", driver_process)
 
         end_time = time.time() + timeout_sec
         try:
@@ -244,14 +401,28 @@ def _do_run(
         except KeyboardInterrupt:
             print(f"{test_name}: Keyboard Interrupt")
         finally:
-            # Deactivate, cleanup and shutdown the node, if needed
-            if lifecycle_node:
-                switch_node_state("deactivate")
-                switch_node_state("cleanup")
-                switch_node_state("shutdown")
+            # Deactivate, cleanup and shutdown the node, if needed. Best effort: the run is
+            # already finishing, so a transition that cannot be made now - because the node has
+            # died, say - must be reported rather than raised, or it would replace whatever
+            # actually went wrong with a complaint about the tidying up afterwards.
+            if lifecycle_node and lifecycle is not None:
+                for action in ("deactivate", "cleanup", "shutdown"):
+                    try:
+                        lifecycle.switch(action, driver_process)
+                    except RuntimeError as error:
+                        print(
+                            f"{test_name}: could not {action} while finishing: {error}",
+                            flush=True,
+                        )
+                        break
 
-            test_node.destroy_node()
-            rclpy.try_shutdown()
+            if lifecycle is not None:
+                lifecycle.destroy()
+                lifecycle = None
+
+            _bounded_rclpy_teardown(
+                test_name, test_node, (synthetic_data_process, driver_process)
+            )
 
         print(f"{test_name}: Finishing...")
 
@@ -264,11 +435,23 @@ def _do_run(
             # Stop the provizio radar node
             os.killpg(os.getpgid(driver_process.pid), signal.SIGINT)
 
-        # Wait till both are stopped:
-        if synthetic_data_process:
-            synthetic_data_process.wait()
-        if driver_process:
-            driver_process.wait()
+        # Wait till both are stopped. Bound each wait and escalate to SIGKILL if a process ignores SIGINT,
+        # so a wedged node/synthetic-data process can never hang the test (and CI) indefinitely.
+        for process in (synthetic_data_process, driver_process):
+            if not process:
+                continue
+            try:
+                process.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                print(
+                    f"{test_name}: process {process.pid} didn't stop on SIGINT, sending SIGKILL",
+                    flush=True,
+                )
+                try:
+                    os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.wait()
 
     # Report the results
     if test_node.success == failure_expected:

@@ -15,10 +15,37 @@
 # limitations under the License.
 
 import argparse
+import asyncio
 import provizio_dds
 import signal
 import threading
 import time
+
+# Radar range constants. As of provizio_dds 2.0 / provizio_dds_idls 2.1 the radar_info and
+# set_radar_range range fields are plain uint32 (were a provizio_dds.<name>_range enum before), so the
+# module-level enum constants no longer exist. These literal values match the on-wire encoding and
+# provizio_radar_api_ros2/msg/RadarInfo.msg.
+SHORT_RANGE = 0
+MEDIUM_RANGE = 1
+LONG_RANGE = 2
+ULTRA_LONG_RANGE = 3
+HYPER_LONG_RANGE = 4
+UNKNOWN_RANGE = 65535
+
+
+def make_range_vector(values):
+    # supported_ranges is a sequence<uint32>. provizio_dds 2.0 wraps it as uint32_t_vector; fall back to
+    # the legacy provizio_msg_radar_range_vector for older/interop builds.
+    for name in ("uint32_t_vector", "provizio_msg_radar_range_vector"):
+        vector_type = getattr(provizio_dds, name, None)
+        if vector_type is None:
+            continue
+        vector = vector_type()
+        for value in values:
+            vector.append(value)
+        return vector
+    raise RuntimeError("provizio_dds exposes no uint32 vector type for supported_ranges")
+
 
 # Constants
 DEFAULT_FRAME_ID = "provizio_radar_front_center"
@@ -115,11 +142,11 @@ FUSED_ENTITIES = [
 ]
 RADAR_INFO_TOPIC_NAME = "rt/provizio_radar_info"
 RADAR_INFO_SERIAL_NUMBER = "0987654321"
-RADAR_INFO_CURRENT_RANGE = provizio_dds.long_range
+RADAR_INFO_CURRENT_RANGE = LONG_RANGE
 RADAR_INFO_SUPPORTED_RANGES = [
-    provizio_dds.medium_range,
-    provizio_dds.long_range,
-    provizio_dds.ultra_long_range,
+    MEDIUM_RANGE,
+    LONG_RANGE,
+    ULTRA_LONG_RANGE,
 ]
 RADAR_ODOMETRY_TOPIC_NAME = "rt/provizio_radar_odometry"
 ODOMETRY_CHILD_FRAME_ID = "odometry_child_frame"
@@ -214,13 +241,20 @@ RADAR_FREESPACE_TOPIC_NAME = "rt/provizio_freespace_poly"
 CAMERA_FREESPACE_TOPIC_NAME = "rt/provizio_freespace_camera_poly"
 FREESPACE_POLYGON_ID = 120
 FREESPACE_POINTS = [[1.0, 2.0, 3.0], [-1.0, -2.0, -3.0], [10.0, 200.0, 3000.0]]
-SET_RADAR_RANGE_TOPIC_NAME = "rt/provizio_set_radar_range"
-SET_RADAR_RANGE_START_RANGE = provizio_dds.medium_range
-SET_RANGE_OK_FAST = provizio_dds.short_range
-SET_RANGE_OK_SLOW = provizio_dds.long_range
-SET_RANGE_FAIL = provizio_dds.ultra_long_range
-SET_RANGE_DROP = provizio_dds.hyper_long_range
+SET_RADAR_RANGE_SERVICE_NAME = "provizio_set_radar_range"
+SET_RADAR_RANGE_START_RANGE = MEDIUM_RANGE
+SET_RANGE_OK_FAST = SHORT_RANGE
+SET_RANGE_OK_SLOW = LONG_RANGE
+SET_RANGE_FAIL = ULTRA_LONG_RANGE
+SET_RANGE_DROP = HYPER_LONG_RANGE
 SET_RANGE_SLOW_TIME = 15.0
+SET_RANGE_SUPPORTED_RANGES = [
+    SHORT_RANGE,
+    MEDIUM_RANGE,
+    LONG_RANGE,
+    ULTRA_LONG_RANGE,
+    HYPER_LONG_RANGE,
+]
 
 
 def spin(name, iteration_function, stop_event, period, *args, **kwargs):
@@ -323,10 +357,7 @@ def publish_radar_info(
         radar_info.header(make_header(frame_id))
         radar_info.serial_number(RADAR_INFO_SERIAL_NUMBER)
         radar_info.current_range(RADAR_INFO_CURRENT_RANGE)
-        supported_ranges = provizio_dds.provizio_msg_radar_range_vector()
-        for it in RADAR_INFO_SUPPORTED_RANGES:
-            supported_ranges.append(it)
-        radar_info.supported_ranges(supported_ranges)
+        radar_info.supported_ranges(make_range_vector(RADAR_INFO_SUPPORTED_RANGES))
         return publisher.publish(radar_info)
 
     return spin(name, publish, stop_event, publish_period)
@@ -448,85 +479,95 @@ def serve_set_radar_range(
     participant,
     stop_event,
     name="serve_set_radar_range",
-    topic_name=SET_RADAR_RANGE_TOPIC_NAME,
+    service_name=SET_RADAR_RANGE_SERVICE_NAME,
     info_topic_name=RADAR_INFO_TOPIC_NAME,
     frame_id=DEFAULT_FRAME_ID,
     publish_period=0.1,
 ):
-    do_publish = True
-    current_range = SET_RADAR_RANGE_START_RANGE
+    # The radar's current range, shared between the request/response Service handler and the radar_info
+    # publisher. The ROS 2 wrapper's quick-set short-circuit reads the current range from radar_info.
+    state = {"current_range": SET_RADAR_RANGE_START_RANGE}
+
     radar_info_publisher = provizio_dds.Publisher(
         participant, info_topic_name, provizio_dds.radar_infoPubSubType
     )
 
     def publish_radar_info():
-        if not do_publish:
-            return True
-
         radar_info = provizio_dds.radar_info()
         radar_info.header(make_header(frame_id))
-        radar_info.current_range(current_range)
+        radar_info.serial_number(RADAR_INFO_SERIAL_NUMBER)
+        radar_info.current_range(state["current_range"])
+        radar_info.supported_ranges(make_range_vector(SET_RANGE_SUPPORTED_RANGES))
         return radar_info_publisher.publish(radar_info)
 
-    def serve(request: provizio_dds.set_radar_range):
-        nonlocal current_range
-        nonlocal do_publish
-        if request.header().frame_id() == frame_id:
-            match request.target_range():
-                case v if v == SET_RANGE_OK_FAST or v == SET_RADAR_RANGE_START_RANGE:
-                    print(
-                        f"synthetic_data_dds: Setting the radar range (fast) = {request.target_range()}"
-                    )
-                    current_range = request.target_range()
-                    do_publish = True
+    def make_response(request, success, error_message):
+        response = provizio_dds.set_radar_range_Response()
+        response.header(make_header(frame_id))
+        response.success(success)
+        response.error_message(error_message)
+        response.serial_number(request.serial_number())
+        response.current_range(state["current_range"])
+        response.supported_ranges(make_range_vector(SET_RANGE_SUPPORTED_RANGES))
+        return response
 
-                case v if v == SET_RANGE_OK_SLOW:
-                    print(
-                        f"synthetic_data_dds: Setting the radar range (slow) = {request.target_range()}..."
-                    )
-                    time.sleep(SET_RANGE_SLOW_TIME)
-                    current_range = request.target_range()
-                    do_publish = True
-                    print(
-                        f"synthetic_data_dds: Setting the radar range (slow) done = {request.target_range()}"
-                    )
+    # An async handler so a slow range change doesn't block concurrent requests (the Service runs async
+    # handlers as concurrent asyncio tasks).
+    async def serve(request):
+        target_range = request.target_range()
+        match target_range:
+            case v if v == SET_RANGE_OK_FAST or v == SET_RADAR_RANGE_START_RANGE:
+                print(
+                    f"synthetic_data_dds: Setting the radar range (fast) = {target_range}"
+                )
+                state["current_range"] = target_range
+                return make_response(request, True, "")
 
-                case v if v == SET_RANGE_FAIL:
-                    # Don't change the range
-                    print(
-                        f"synthetic_data_dds: Don't change the range but keep publishing radar_info. current_range = {current_range}"
-                    )
-                    do_publish = True
+            case v if v == SET_RANGE_OK_SLOW:
+                print(
+                    f"synthetic_data_dds: Setting the radar range (slow) = {target_range}..."
+                )
+                await asyncio.sleep(SET_RANGE_SLOW_TIME)
+                state["current_range"] = target_range
+                print(
+                    f"synthetic_data_dds: Setting the radar range (slow) done = {target_range}"
+                )
+                return make_response(request, True, "")
 
-                case v if v == SET_RANGE_DROP:
-                    # Don't change the range and in addition to that stop publishing
-                    print(
-                        f"synthetic_data_dds: Don't change the range and stop publishing radar_info. current_range = {current_range}"
-                    )
-                    do_publish = False
+            case v if v == SET_RANGE_FAIL:
+                # Don't change the range; respond with a failure
+                print(
+                    f"synthetic_data_dds: Refusing to change the range. current_range = {state['current_range']}"
+                )
+                return make_response(request, False, "Requested range is not supported")
 
-    subscriber = provizio_dds.Subscriber(
+            case _:  # SET_RANGE_DROP (and any unexpected range): drop the request without a response
+                print(
+                    f"synthetic_data_dds: Dropping the request without a response. current_range = {state['current_range']}"
+                )
+                raise provizio_dds.Service.IgnoreRequest()
+
+    service = provizio_dds.Service(
         participant,
-        topic_name,
-        provizio_dds.set_radar_rangePubSubType,
-        provizio_dds.set_radar_range,
+        provizio_dds.set_radar_range_RequestPubSubType,
+        provizio_dds.set_radar_range_Request,
+        provizio_dds.set_radar_range_ResponsePubSubType,
         serve,
+        service_name=service_name,
     )
 
     info_thread = spin(name, publish_radar_info, stop_event, publish_period)
 
     class thread_wrapper:
-        def __init__(self, subscriber, info_thread):
-            self.subscriber = subscriber
+        def __init__(self, service, info_thread):
+            self.service = service
             self.info_thread = info_thread
-            pass
 
         def join(self):
             self.info_thread.join()
-            del self.subscriber
-            print(f"{name} subscriber has finished")
+            del self.service
+            print(f"{name} service has finished")
 
-    return thread_wrapper(subscriber, info_thread)
+    return thread_wrapper(service, info_thread)
 
 
 stop_event = None

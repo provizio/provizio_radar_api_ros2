@@ -59,7 +59,9 @@ namespace provizio
     extern const std::string radar_freespace_dds_topic_name;
     extern const std::string camera_freespace_dds_topic_name;
     extern const std::string radar_info_dds_topic_name;
-    extern const std::string set_radar_range_dds_topic_name;
+    // DDS request/response service name (same in provizio_dds and ROS 2). The request/response DDS
+    // topics rq/provizio_set_radar_rangeRequest and rr/provizio_set_radar_rangeReply are inferred from it.
+    extern const std::string set_radar_range_dds_service_name;
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_CONSTANTS_DDS
