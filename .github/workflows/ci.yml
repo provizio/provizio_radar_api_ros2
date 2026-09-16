@@ -15,6 +15,10 @@ jobs:
   test:
     name: Build with static analysis and test
     runs-on: ${{matrix.runner}}
+    # A wedged job must not sit for GitHub's default six hours. The suite runs well inside this even
+    # on the slower self-hosted runner, so anything approaching it is stuck rather than slow. The
+    # harness bounds its own waits too; this is the backstop for whatever it cannot bound.
+    timeout-minutes: 120
     strategy:
       # One job failing must not cancel the rest of the matrix. The combinations are independent, and
       # a single transient failure - a Docker Hub token fetch reset by the registry, say - would

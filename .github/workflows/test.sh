@@ -117,10 +117,10 @@ build_with_base_repo() {
 # worse than having no fallback at all: every job would go on passing while the mirror it is meant to
 # exercise sat broken or empty, and nobody would find out until Docker Hub throttled the matrix again.
 record_base_image_source() {
+    # Printed, not written to the CI step summary: one summary entry per job is 160 of them per run,
+    # which drowns the summary view for something that is only interesting when it says FALLBACK -
+    # and that case already raises a workflow warning below, which is visible on the job itself.
     echo "PROVIZIO_BASE_IMAGE_SOURCE=$1 $2"
-    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-        echo "- Base image from \`$1\` ($2)" >> "${GITHUB_STEP_SUMMARY}"
-    fi
 }
 
 if build_with_base_repo "${BASE_IMAGE_REPO}"; then
@@ -163,4 +163,4 @@ fi
 # fail to register the SHM transport ("Failed to create segment ... / SHM Transport is not supported") and
 # fall back to UDP; on Fast-DDS 3.x (kilted+) that breaks discovery and the tests never connect. A 512 MB
 # /dev/shm lets the SHM transport work as intended. Mirrors provizio_dds' own ROS 2 CI.
-docker run --shm-size=512m --name provizio_radar_api_ros2_test_${ROS_DISTRO} --entrypoint "/bin/bash" ${CONTAINER_TAG} -c "export RMW_IMPLEMENTATION=${ROS_RMW} && echo \"Testing via \${RMW_IMPLEMENTATION}...\" && source install/setup.bash && source test_env/bin/activate && python3 install/provizio_radar_api_ros2/lib/test_all.py"
+docker run --shm-size=512m --name provizio_radar_api_ros2_test_${ROS_DISTRO} --entrypoint "/bin/bash" ${CONTAINER_TAG} -c "export RMW_IMPLEMENTATION=${ROS_RMW} && echo \"Testing via \${RMW_IMPLEMENTATION}...\" && src/provizio_radar_api_ros2/.github/workflows/run_tests.sh"

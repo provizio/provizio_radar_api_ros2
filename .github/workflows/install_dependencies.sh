@@ -48,6 +48,12 @@ if [[ "${TEST_ENVIRONMENT}" != "" ]]; then
     touch "${TEST_ENVIRONMENT}/COLCON_IGNORE"
     source "${TEST_ENVIRONMENT}/bin/activate"
 
+    # Diagnostics used by run_tests.sh's watchdog to dump Python and native stacks from a wedged
+    # test run. Without them a hang is just a job that dies at the runner's own timeout with nothing
+    # in the log to explain it, which is exactly how one previously went uninvestigated.
+    apt install -y --no-install-recommends gdb
+    python3 -m pip install py-spy
+
     # provizio_dds
     apt install -y --no-install-recommends curl
     # -f makes curl exit non-zero on an HTTP error (e.g. a bad version) instead of piping the error page

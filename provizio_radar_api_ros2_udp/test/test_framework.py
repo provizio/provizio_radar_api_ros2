@@ -23,6 +23,8 @@ import signal
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs_py.point_cloud2 as pc2
 import subprocess
+import sys
+import threading
 import time
 from collections import namedtuple
 from typing import Iterable, List, NamedTuple, Optional
@@ -127,6 +129,54 @@ class RunNodes(Enum):
     SIMPLE = 2
     LIFECYCLE = 3
 
+
+
+
+def _bounded_rclpy_teardown(test_name, test_node, processes, timeout_sec=30.0):
+    """Tears the rclpy side down, but never waits on it forever.
+
+    destroy_node() and try_shutdown() can wedge inside the RMW. Observed on lyrical +
+    rmw_fastrtps_cpp: a test whose messages never arrived timed out, and the teardown that followed
+    never returned - two CI jobs sat for hours until the job limit killed them. Every test in this
+    suite runs in this one process, so one wedged teardown takes the whole run with it, and the
+    subprocess teardown that was already bounded never even got the chance to run.
+
+    A teardown that does not finish is not something to carry on from: rclpy is left half shut down,
+    so the next rclpy.init() would likely wedge in the same place and the run would hang anyway,
+    just later and with a more confusing log. So say plainly what happened, take the child processes
+    down, and exit non-zero - a fast, diagnosable failure instead of a silent multi-hour stall.
+    """
+    finished = threading.Event()
+
+    def teardown():
+        try:
+            test_node.destroy_node()
+            rclpy.try_shutdown()
+        finally:
+            finished.set()
+
+    threading.Thread(
+        target=teardown, name=f"{test_name}-rclpy-teardown", daemon=True
+    ).start()
+
+    if finished.wait(timeout_sec):
+        return
+
+    print(
+        f"{test_name}: rclpy teardown did not complete within {timeout_sec} sec - the RMW is wedged. "
+        "Failing the run rather than waiting: every test shares this process, so nothing after this "
+        "would be trustworthy.",
+        flush=True,
+    )
+    for process in processes:
+        if process and process.poll() is None:
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(1)
 
 def _do_run(
     test_name,
@@ -306,8 +356,9 @@ def _do_run(
                 switch_node_state("cleanup")
                 switch_node_state("shutdown")
 
-            test_node.destroy_node()
-            rclpy.try_shutdown()
+            _bounded_rclpy_teardown(
+                test_name, test_node, (driver_process,)
+            )
 
         print(f"{test_name}: Finishing...")
 
