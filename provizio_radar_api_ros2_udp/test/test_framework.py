@@ -16,6 +16,8 @@
 
 from enum import Enum
 import os
+from lifecycle_msgs.msg import State, Transition
+from lifecycle_msgs.srv import ChangeState, GetState
 import rclpy
 import rclpy.node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
@@ -132,6 +134,117 @@ class RunNodes(Enum):
 
 
 
+
+# Lifecycle transition ids by the action name this harness uses. "shutdown" is deliberately absent:
+# which shutdown transition is valid depends on where the node currently is, see _SHUTDOWN_TRANSITIONS.
+_LIFECYCLE_TRANSITIONS = {
+    "configure": Transition.TRANSITION_CONFIGURE,
+    "cleanup": Transition.TRANSITION_CLEANUP,
+    "activate": Transition.TRANSITION_ACTIVATE,
+    "deactivate": Transition.TRANSITION_DEACTIVATE,
+}
+
+_SHUTDOWN_TRANSITIONS = {
+    State.PRIMARY_STATE_UNCONFIGURED: Transition.TRANSITION_UNCONFIGURED_SHUTDOWN,
+    State.PRIMARY_STATE_INACTIVE: Transition.TRANSITION_INACTIVE_SHUTDOWN,
+    State.PRIMARY_STATE_ACTIVE: Transition.TRANSITION_ACTIVE_SHUTDOWN,
+}
+
+# Where each action is meant to leave the node. Reaching it is the definition of success, so an
+# action whose node is already there is a no-op rather than an invalid request.
+_STATE_AFTER = {
+    "configure": State.PRIMARY_STATE_INACTIVE,
+    "cleanup": State.PRIMARY_STATE_UNCONFIGURED,
+    "activate": State.PRIMARY_STATE_ACTIVE,
+    "deactivate": State.PRIMARY_STATE_INACTIVE,
+    "shutdown": State.PRIMARY_STATE_FINALIZED,
+}
+
+
+class _LifecycleController:
+    """Drives a managed node's transitions over its own lifecycle services.
+
+    This replaces shelling out to `ros2 lifecycle set`, which is not reliable under load. That CLI
+    creates a ROS 2 node and rediscovers the target from scratch on every single call, and when the
+    rediscovery loses a race it reports "Transitioning failed" for a transition the node's own log
+    shows completing. The harness would then retry, find the node somewhere other than where it
+    thought, and report "Unknown transition requested, available ones are:" with an empty list -
+    which reads like the node refusing a transition when nothing of the sort happened.
+
+    Two changes fix that. One client is held for the whole run, so discovery happens once instead of
+    per transition. And the node's own reported state is the authority on whether a transition is
+    needed and whether it worked, rather than the exit status of a CLI that may have simply missed
+    the answer.
+    """
+
+    def __init__(self, node_name, timeout_sec=60.0):
+        self._node_name = node_name
+        self._timeout_sec = timeout_sec
+        self._node = rclpy.create_node(f"{node_name}_lifecycle_controller")
+        self._get_state = self._node.create_client(GetState, f"/{node_name}/get_state")
+        self._change_state = self._node.create_client(
+            ChangeState, f"/{node_name}/change_state"
+        )
+
+    def destroy(self):
+        self._node.destroy_node()
+
+    def _call(self, client, request, timeout_sec):
+        """Calls one service, returning None rather than raising if it does not answer in time."""
+        if not client.wait_for_service(timeout_sec=timeout_sec):
+            return None
+
+        future = client.call_async(request)
+        rclpy.spin_until_future_complete(self._node, future, timeout_sec=timeout_sec)
+        if not future.done():
+            future.cancel()
+            return None
+
+        return future.result()
+
+    def state(self, timeout_sec=15.0):
+        """The node's current primary state id, or None if it did not answer."""
+        response = self._call(self._get_state, GetState.Request(), timeout_sec)
+        return response.current_state.id if response is not None else None
+
+    def switch(self, action, driver_process=None):
+        """Brings the node to the state `action` denotes, or raises if it cannot within the timeout."""
+        target = _STATE_AFTER[action]
+        end_time = time.time() + self._timeout_sec
+        last_state = None
+
+        while True:
+            if driver_process is not None and driver_process.poll() is not None:
+                raise RuntimeError(
+                    f"{self._node_name} exited with code {driver_process.returncode} "
+                    f"before it could {action}"
+                )
+
+            last_state = self.state()
+            if last_state == target:
+                return
+
+            if last_state is not None:
+                transition = (
+                    _SHUTDOWN_TRANSITIONS.get(last_state)
+                    if action == "shutdown"
+                    else _LIFECYCLE_TRANSITIONS.get(action)
+                )
+                if transition is not None:
+                    request = ChangeState.Request()
+                    request.transition.id = transition
+                    self._call(self._change_state, request, timeout_sec=30.0)
+                    # The response is deliberately not trusted on its own: the loop re-reads the
+                    # state, which is the only thing that actually says whether the node moved.
+
+            if time.time() >= end_time:
+                raise RuntimeError(
+                    f"{self._node_name} did not reach the state to {action} within "
+                    f"{self._timeout_sec} sec (last state id seen: {last_state})"
+                )
+
+            time.sleep(0.25)
+
 def _bounded_rclpy_teardown(test_name, test_node, processes, timeout_sec=30.0):
     """Tears the rclpy side down, but never waits on it forever.
 
@@ -221,90 +334,8 @@ def _do_run(
 
     # Lifecycle state each transition can be requested from. `shutdown` is reachable from any of the
     # three non-final states.
-    transition_start_states = {
-        "configure": ("unconfigured",),
-        "activate": ("inactive",),
-        "deactivate": ("active",),
-        "cleanup": ("inactive",),
-        "shutdown": ("unconfigured", "inactive", "active"),
-    }
-
-    def wait_for_transition(action, timeout_sec=60):
-        # `ros2 lifecycle set` talks to the node's lifecycle services, which only exist once ROS 2
-        # discovery has propagated them to the CLI's own (freshly created) node. Until then the request
-        # fails with "Node not found" or an empty transition list, which is indistinguishable from the
-        # transition genuinely being refused. So first wait until the node reports a state the transition
-        # can actually be requested from, and fail with a message saying which of the two happened.
-        # `ros2 lifecycle get` is used rather than `list` because `list` silently prints nothing (and still
-        # exits 0) when given a fully qualified "/node" name. Also bail out early if the node died, rather
-        # than waiting out the whole timeout for services that will never appear.
-        expected_states = transition_start_states[action]
-        end_time = time.time() + timeout_sec
-        last_seen = ""
-        while time.time() < end_time:
-            if driver_process is not None and driver_process.poll() is not None:
-                raise RuntimeError(
-                    f"{node_name} exited with code {driver_process.returncode} before it could {action}"
-                )
-            try:
-                state = subprocess.run(
-                    ["ros2", "lifecycle", "get", f"/{node_name}"],
-                    capture_output=True,
-                    text=True,
-                    timeout=15,
-                )
-                last_seen = state.stdout.strip()
-                # Prints "<label> [<id>]", e.g. "inactive [2]"
-                if any(last_seen.startswith(s) for s in expected_states):
-                    return
-            except subprocess.TimeoutExpired:
-                pass
-            time.sleep(0.5)
-
-        raise RuntimeError(
-            f"{node_name} never reached a state to {action} from "
-            f"({' or '.join(expected_states)}) within {timeout_sec} sec. "
-            f"Last state seen: {last_seen or '<none>'}"
-        )
-
-    def switch_node_state(action):
-        # Only request the transition once it's actually offered (see wait_for_transition). Even then the
-        # request can still lose a race: `ros2 lifecycle set` spins up its own ROS 2 node and rediscovers
-        # the target from scratch, so under slow discovery it can find no services ("Node not found") or an
-        # empty transition list ("Unknown transition requested, available ones are:" followed by nothing)
-        # even though the node is healthy. Both are "not visible yet", not "the transition failed", so
-        # retry only those two signatures - a transition the node genuinely refuses fails immediately.
-        # Bound each attempt with `timeout`: if the node dies mid-transition, `ros2 lifecycle set` would
-        # otherwise block forever waiting for a service that never returns, hanging the whole test.
-        wait_for_transition(action)
-
-        not_yet_visible = ("Unknown transition requested", "Node not found")
-        end_time = time.time() + 60
-        attempt = 0
-        while True:
-            attempt += 1
-            result = subprocess.run(
-                ["timeout", "30", "ros2", "lifecycle", "set", f"/{node_name}", action],
-                capture_output=True,
-                text=True,
-            )
-            output = (result.stdout or "") + (result.stderr or "")
-            print(output, end="", flush=True)
-            if result.returncode == 0:
-                return
-
-            if not any(s in output for s in not_yet_visible) or time.time() >= end_time:
-                raise RuntimeError(
-                    f"Failed to {action} {node_name} (attempt {attempt}): {output.strip() or 'no output'}"
-                )
-
-            print(
-                f"{node_name} not visible to `ros2 lifecycle set` yet, retrying {action}...",
-                flush=True,
-            )
-            time.sleep(1.0)
-
     driver_process = None
+    lifecycle = None
     synthetic_data = None
     try:
         # Start the driver node
@@ -321,8 +352,9 @@ def _do_run(
 
         # Configure and activate the node, if needed
         if lifecycle_node:
-            switch_node_state("configure")
-            switch_node_state("activate")
+            lifecycle = _LifecycleController(node_name)
+            lifecycle.switch("configure", driver_process)
+            lifecycle.switch("activate", driver_process)
 
         end_time = time.time() + timeout_sec
         try:
@@ -350,11 +382,24 @@ def _do_run(
         except KeyboardInterrupt:
             print(f"{test_name}: Keyboard Interrupt")
         finally:
-            # Deactivate, cleanup and shutdown the node, if needed
-            if lifecycle_node:
-                switch_node_state("deactivate")
-                switch_node_state("cleanup")
-                switch_node_state("shutdown")
+            # Deactivate, cleanup and shutdown the node, if needed. Best effort: the run is
+            # already finishing, so a transition that cannot be made now - because the node has
+            # died, say - must be reported rather than raised, or it would replace whatever
+            # actually went wrong with a complaint about the tidying up afterwards.
+            if lifecycle_node and lifecycle is not None:
+                for action in ("deactivate", "cleanup", "shutdown"):
+                    try:
+                        lifecycle.switch(action, driver_process)
+                    except RuntimeError as error:
+                        print(
+                            f"{test_name}: could not {action} while finishing: {error}",
+                            flush=True,
+                        )
+                        break
+
+            if lifecycle is not None:
+                lifecycle.destroy()
+                lifecycle = None
 
             _bounded_rclpy_teardown(
                 test_name, test_node, (driver_process,)
