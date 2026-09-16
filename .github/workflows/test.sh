@@ -40,4 +40,10 @@ docker build \
 # shellcheck disable=SC2086
 (docker rm -f provizio_radar_api_ros2_test_${ROS_DISTRO} || true) > /dev/null 2>&1
 # shellcheck disable=SC2086
-docker run --name provizio_radar_api_ros2_test_${ROS_DISTRO} --entrypoint "/bin/bash" ${CONTAINER_TAG} -c "export RMW_IMPLEMENTATION=${ROS_RMW} && echo \"Testing via \${RMW_IMPLEMENTATION}...\" && source install/setup.bash && source test_env/bin/activate && python3 install/provizio_radar_api_ros2/lib/test_all.py"
+# --shm-size=512m: the DDS request/response tests run several Fast-DDS participants (radar, node's
+# contained DDS, ROS 2 RMW) at once, and provizio's large-sample QoS sizes each participant's shared-memory
+# segment at ~34 MB. Docker's default 64 MB /dev/shm can't hold more than one, so the extra participants
+# fail to register the SHM transport ("Failed to create segment ... / SHM Transport is not supported") and
+# fall back to UDP; on Fast-DDS 3.x (kilted+) that breaks discovery and the tests never connect. A 512 MB
+# /dev/shm lets the SHM transport work as intended. Mirrors provizio_dds' own ROS 2 CI.
+docker run --shm-size=512m --name provizio_radar_api_ros2_test_${ROS_DISTRO} --entrypoint "/bin/bash" ${CONTAINER_TAG} -c "export RMW_IMPLEMENTATION=${ROS_RMW} && echo \"Testing via \${RMW_IMPLEMENTATION}...\" && source install/setup.bash && source test_env/bin/activate && python3 install/provizio_radar_api_ros2/lib/test_all.py"

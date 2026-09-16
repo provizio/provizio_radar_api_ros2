@@ -18,7 +18,7 @@ jobs:
     strategy:
       matrix:
         runner: [ubuntu-latest, jetson-18.04]
-        ros: [humble, iron, jazzy]
+        ros: [humble, iron, jazzy, kilted, lyrical]
         ros_rmw: [rmw_fastrtps_cpp, rmw_cyclonedds_cpp]
         cc: [gcc, clang]
         api: [dds, udp]
