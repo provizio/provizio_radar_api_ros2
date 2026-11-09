@@ -25,7 +25,9 @@ jobs:
       # otherwise cancel well over a hundred unrelated jobs and hide whatever else was broken.
       fail-fast: false
       matrix:
-        runner: [ubuntu-latest, jetson-18.04]
+        # Ubuntu 20.04 is the oldest supported host (provizio_dds dropped 18.04 in 2.0.5); every job
+        # still builds and tests inside a ros:<distro> container
+        runner: [ubuntu-latest, jetson-20.04]
         ros: [humble, iron, jazzy, kilted, lyrical]
         ros_rmw: [rmw_fastrtps_cpp, rmw_cyclonedds_cpp]
         cc: [gcc, clang]
