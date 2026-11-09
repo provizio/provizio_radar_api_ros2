@@ -7,3 +7,7 @@ log/
 .clang-tidy
 CMakeUserPresets.json
 __pycache__
+
+# Claude Code / AI assistant working docs (specs, plans, notes).
+# A root CLAUDE.md / AGENTS.md, if present, is intentionally NOT ignored.
+docs/superpowers/

@@ -152,6 +152,36 @@ namespace provizio
         std::string serial_number;
         std::int8_t target_range;
     };
+
+    // Only the fields the C ABI actually marshals back (see
+    // provizio_dds_contained_request_set_radar_range). The radar's response also carries a header and a
+    // serial_number, but neither crosses the boundary, so they are deliberately absent rather than
+    // present and always default-constructed on the caller's side.
+    struct contained_set_radar_range_response
+    {
+        bool success{false};
+        std::string error_message;
+        std::int8_t current_range{-1}; // provizio_radar_api_ros2::msg::RadarInfo::UNKNOWN_RANGE
+        std::vector<std::int8_t> supported_ranges;
+    };
+
+    // Outcome of a set_radar_range request/response round-trip. Note that "ok" only means a response
+    // was received; check contained_set_radar_range_response::success for whether the range was set.
+    enum class contained_set_radar_range_status : std::int32_t
+    {
+        ok = 0,         // A response was received from the radar
+        timed_out = 1,  // No response received within the timeout
+        error = 2,      // Failed to issue the request
+        interrupted = 3 // The wait was interrupted (the node is being deactivated / shut down)
+    };
+
+    // The set_radar_range request/response crosses the extern "C" boundary of a library dlmopen'd into a
+    // separate C++ runtime / heap namespace (see provizio_dds_container.cpp). std::string / std::vector
+    // objects must NOT cross that boundary (allocating them on one side and reading/freeing them on the
+    // other corrupts the heap). Request/response payloads are therefore marshalled as C strings and POD
+    // arrays with these fixed capacities.
+    constexpr std::size_t contained_set_radar_range_error_message_capacity = 256;
+    constexpr std::size_t contained_set_radar_range_max_supported_ranges = 16;
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINED_TYPES

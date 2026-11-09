@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import test_framework
 from enum import Enum
 from geometry_msgs.msg import PolygonStamped
@@ -26,6 +27,14 @@ try:
 except ImportError:
     # No PolygonInstanceStamped
     pass
+
+# Whether the node publishes PolygonInstanceStamped freespace, which it does only from ROS 2 Jazzy
+# (rclcpp 28) on: PROVIZIO_POLYGON_INSTANCE_AVAILABLE in features.h. Humble and Iron have the
+# message type in Python too, but the node there publishes PolygonStamped freespace only, so a run
+# waiting for both would never finish.
+NODE_PUBLISHES_POLYGON_INSTANCE_STAMPED = HAS_POLYGON_INSTANCE_STAMPED and os.environ.get(
+    "ROS_DISTRO", ""
+) not in ("humble", "iron")
 
 
 DDS_DOMAIN_ID = 25
@@ -62,7 +71,7 @@ class TestNode(test_framework.Node):
             self.listener_callback,
             qos_profile=self.qos_profile,
         )
-        if HAS_POLYGON_INSTANCE_STAMPED:
+        if NODE_PUBLISHES_POLYGON_INSTANCE_STAMPED:
             self.subscription = self.create_subscription(
                 PolygonInstanceStamped,
                 (
@@ -111,7 +120,7 @@ class TestNode(test_framework.Node):
                 self.successful_messages_stamped += 1
 
             if self.successful_messages_stamped >= NUM_MESSAGES_NEEDED and (
-                not HAS_POLYGON_INSTANCE_STAMPED
+                not NODE_PUBLISHES_POLYGON_INSTANCE_STAMPED
                 or self.successful_messages_instance_stamped >= NUM_MESSAGES_NEEDED
             ):
                 self.succeed()

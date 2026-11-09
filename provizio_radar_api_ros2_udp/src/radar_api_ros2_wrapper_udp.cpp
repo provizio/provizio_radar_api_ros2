@@ -14,7 +14,15 @@
 
 #include "provizio_radar_api_ros2/radar_api_ros2_wrapper_udp.h"
 
+#include <algorithm>
+#include <array>
+#include <charconv>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <limits>
 #include <string>
+#include <system_error>
 
 namespace provizio
 {
@@ -29,6 +37,32 @@ namespace provizio
         const std::string frame_id_rear_right = frame_id_prefix + "rear_right";
         const std::string frame_id_rear_center = frame_id_prefix + "rear_center";
         // NOLINTEND
+
+        constexpr std::uint32_t entity_orientation_num_components = 4; // x, y, z, w
+        constexpr std::uint32_t entity_size_num_components = 3;        // x, y, z
+
+        // ROS 2 PointCloud2 layout of a single radar entity. The exact byte layout is an internal detail
+        // (consumers resolve fields via PointCloud2::fields); it carries the same content as the DDS radar
+        // entities, with orientation as (x, y, z, w). The layout is naturally aligned - the 4-byte fields sit
+        // at 4-byte offsets and the whole point is a multiple of 4 bytes - so consumers that read the floats
+        // via aligned loads (e.g. PointCloud2Iterator) stay well-defined on strict-alignment CPUs (ARM). The
+        // single-byte fields are grouped at the end for this reason.
+        struct ros2_radar_entity
+        {
+            std::uint32_t entity_id;
+            float x;
+            float y;
+            float z;
+            float radar_relative_radial_velocity;
+            float ground_relative_radial_velocity;
+            std::array<float, entity_orientation_num_components> orientation;
+            std::array<float, entity_size_num_components> size;
+            std::uint8_t entity_class;
+            std::uint8_t entity_confidence;
+            std::uint8_t entity_class_confidence;
+        };
+        static_assert(sizeof(ros2_radar_entity) % sizeof(float) == 0,
+                      "ros2_radar_entity point_step must be a multiple of 4 bytes for aligned float access");
     } // namespace
 
     void make_sure_sockets_initialized()
@@ -119,14 +153,33 @@ namespace provizio
             return provizio_radar_position_rear_center;
         }
 
-        try
-        {
-            return static_cast<provizio_radar_position>(std::stoul(frame_id.substr(frame_id_prefix.length())));
-        }
-        catch (const std::invalid_argument &)
+        // Anything else has to be "<prefix><number>". The frame_id reaching here comes from a ROS 2
+        // service request, i.e. from any client on the graph, so this parse must neither throw (rclcpp
+        // lets an exception escaping a service callback reach std::terminate) nor guess.
+        //
+        // std::from_chars rather than std::stoul: it does not throw, and it does not silently accept what
+        // stoul does. stoul stops at the first non-digit, so "provizio_radar_3junk" read as position 3 and
+        // "provizio_radar_1e3" as position 1; it also accepts leading whitespace and a sign, wrapping "-1"
+        // to ULONG_MAX. Requiring the whole remainder to parse keeps one frame_id from aliasing onto
+        // another radar's position.
+        if (frame_id.rfind(frame_id_prefix, 0) != 0)
         {
             return provizio_radar_position_unknown;
         }
+
+        const char *const first = frame_id.data() + frame_id_prefix.length();
+        const char *const last = frame_id.data() + frame_id.size();
+        std::uint32_t position_id = 0;
+        const auto parsed = std::from_chars(first, last, position_id);
+        if (parsed.ec != std::errc{} || parsed.ptr != last || position_id >= std::numeric_limits<std::uint16_t>::max())
+        {
+            // Not a number, trailing garbage, or too large to be a position. Note the bound is
+            // >=, not >: 0xffff is provizio_radar_position_unknown itself, which is also
+            // provizio_radar_position_any, so it must never be reachable by parsing a number.
+            return provizio_radar_position_unknown;
+        }
+
+        return static_cast<provizio_radar_position>(position_id);
     }
 
     std::int8_t udp_api_radar_range_to_ros2_range(const provizio_radar_range udp_api_radar_range)
@@ -175,5 +228,74 @@ namespace provizio
         default:
             return provizio_radar_range_unknown;
         }
+    }
+
+    sensor_msgs::msg::PointCloud2 to_ros2_radar_entities(const std_msgs::msg::Header &header,
+                                                         const provizio_radar_entities_frame &entities_frame)
+    {
+        constexpr std::uint8_t float_type = sensor_msgs::msg::PointField::FLOAT32;
+        constexpr std::uint8_t uint32_type = sensor_msgs::msg::PointField::UINT32;
+        constexpr std::uint8_t uint8_type = sensor_msgs::msg::PointField::UINT8;
+
+        sensor_msgs::msg::PointCloud2 result;
+        result.header = header;
+        result.height = 1;
+        result.is_bigendian = is_host_big_endian;
+        result.point_step = sizeof(ros2_radar_entity);
+
+        const auto add_field = [&result](const std::string &name, const std::size_t offset, const std::uint8_t datatype,
+                                         const std::uint32_t count) {
+            sensor_msgs::msg::PointField field;
+            field.name = name;
+            field.offset = static_cast<std::uint32_t>(offset);
+            field.datatype = datatype;
+            field.count = count;
+            result.fields.push_back(field);
+        };
+        add_field(field_entity_id_name, offsetof(ros2_radar_entity, entity_id), uint32_type, 1);
+        add_field(field_entity_class_name, offsetof(ros2_radar_entity, entity_class), uint8_type, 1);
+        add_field(field_x_name, offsetof(ros2_radar_entity, x), float_type, 1);
+        add_field(field_y_name, offsetof(ros2_radar_entity, y), float_type, 1);
+        add_field(field_z_name, offsetof(ros2_radar_entity, z), float_type, 1);
+        add_field(field_radar_relative_radial_velocity_name,
+                  offsetof(ros2_radar_entity, radar_relative_radial_velocity), float_type, 1);
+        add_field(field_ground_relative_radial_velocity_name,
+                  offsetof(ros2_radar_entity, ground_relative_radial_velocity), float_type, 1);
+        add_field(field_orientation_name, offsetof(ros2_radar_entity, orientation), float_type,
+                  entity_orientation_num_components);
+        add_field(field_size_name, offsetof(ros2_radar_entity, size), float_type, entity_size_num_components);
+        add_field(field_entity_confidence_name, offsetof(ros2_radar_entity, entity_confidence), uint8_type, 1);
+        add_field(field_entity_class_confidence_name, offsetof(ros2_radar_entity, entity_class_confidence), uint8_type,
+                  1);
+
+        // Defence-in-depth: the core parser already bounds num_entities_received to radar_entities[]'s size,
+        // but never index a network-sourced count without clamping it.
+        const std::uint16_t num_entities = std::min(entities_frame.num_entities_received,
+                                                    static_cast<std::uint16_t>(PROVIZIO__MAX_RADAR_ENTITIES_PER_FRAME));
+        result.width = num_entities;
+        result.data.resize(static_cast<std::size_t>(result.point_step) * num_entities);
+        for (std::uint16_t i = 0; i < num_entities; ++i)
+        {
+            const provizio_radar_entity &source = entities_frame.radar_entities[i];
+            ros2_radar_entity entity{};
+            entity.entity_id = source.entity_id;
+            entity.entity_class = source.entity_class;
+            entity.x = source.x_meters;
+            entity.y = source.y_meters;
+            entity.z = source.z_meters;
+            entity.radar_relative_radial_velocity = source.radar_relative_radial_velocity_m_s;
+            entity.ground_relative_radial_velocity = source.ground_relative_radial_velocity_m_s;
+            // The UDP quaternion is stored (w, x, y, z); emit (x, y, z, w) to match the DDS entities.
+            entity.orientation = {source.orientation.x, source.orientation.y, source.orientation.z,
+                                  source.orientation.w};
+            entity.size = {source.size.x_meters, source.size.y_meters, source.size.z_meters};
+            entity.entity_confidence = source.entity_confidence;
+            entity.entity_class_confidence = source.entity_class_confidence;
+            std::memcpy(result.data.data() + static_cast<std::size_t>(i) * result.point_step, &entity, sizeof(entity));
+        }
+        result.row_step = static_cast<decltype(result.row_step)>(result.data.size());
+        result.is_dense = true;
+
+        return result;
     }
 } // namespace provizio

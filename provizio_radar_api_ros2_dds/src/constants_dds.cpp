@@ -48,6 +48,6 @@ namespace provizio
     const std::string radar_freespace_dds_topic_name = "rt/provizio_freespace_poly";
     const std::string camera_freespace_dds_topic_name = "rt/provizio_freespace_camera_poly";
     const std::string radar_info_dds_topic_name = "rt/provizio_radar_info";
-    const std::string set_radar_range_dds_topic_name = "rt/provizio_set_radar_range";
+    const std::string set_radar_range_dds_service_name = "provizio_set_radar_range";
     // NOLINTEND
 } // namespace provizio

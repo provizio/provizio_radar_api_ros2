@@ -15,6 +15,9 @@
 #ifndef PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINER
 #define PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINER
 
+#include <atomic>
+#include <cstdint>
+
 #include "provizio_radar_api_ros2/provizio_dds_contained.h"
 
 namespace provizio
@@ -38,10 +41,13 @@ namespace provizio
                                                          const std::string &topic_name,
                                                          on_message_function<provizio::contained_radar_info> on_message,
                                                          on_message_context context);
-    std::shared_ptr<void> make_dds_publisher_set_radar_range(const std::shared_ptr<void> &domain_participant,
-                                                             const std::string &topic_name);
-    bool dds_publish_set_radar_range(const std::shared_ptr<void> &publisher,
-                                     provizio::contained_set_radar_range message);
+    std::shared_ptr<void> make_dds_service_client_set_radar_range(const std::shared_ptr<void> &domain_participant,
+                                                                  const std::string &service_name);
+    contained_set_radar_range_status dds_request_set_radar_range(const std::shared_ptr<void> &service_client,
+                                                                 contained_set_radar_range request,
+                                                                 std::uint64_t timeout_ns,
+                                                                 std::atomic<bool> *should_stop,
+                                                                 contained_set_radar_range_response &out_response);
 } // namespace provizio
 
 #endif // PROVIZIO_RADAR_API_ROS2_PROVIZIO_DDS_CONTAINER

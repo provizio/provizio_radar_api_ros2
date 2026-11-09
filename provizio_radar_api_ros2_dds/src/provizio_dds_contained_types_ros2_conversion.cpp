@@ -288,12 +288,29 @@ namespace provizio
     }
 
     provizio::contained_set_radar_range to_contained_set_radar_range(
-        const provizio_radar_api_ros2::srv::SetRadarRange::Request &request)
+        const provizio_radar_api_ros2::srv::SetRadarRange::Request &request, const std::string &frame_id)
     {
         provizio::contained_set_radar_range result;
         result.header = to_contained_header(request.header);
+        // Scope the outgoing request to the frame_id the caller resolved rather than the one the client
+        // sent. When the node is configured with a frame_id it warns that it's using its own and looks the
+        // current range up by it, so sending the client's would contradict both. When the node has no
+        // frame_id the resolved one is the client's, unchanged - including when that is empty, which stays
+        // a legitimate way to address radars by serial_number alone.
+        result.header.frame_id = frame_id;
         result.serial_number = request.serial_number;
         result.target_range = request.target_range;
+        return result;
+    }
+
+    provizio_radar_api_ros2::srv::SetRadarRange::Response to_ros2_set_radar_range_response(
+        provizio::contained_set_radar_range_response message)
+    {
+        provizio_radar_api_ros2::srv::SetRadarRange::Response result;
+        result.actual_range = message.current_range;
+        result.success = message.success;
+        result.error_message = std::move(message.error_message);
+        result.supported_ranges = std::move(message.supported_ranges);
         return result;
     }
 } // namespace provizio
