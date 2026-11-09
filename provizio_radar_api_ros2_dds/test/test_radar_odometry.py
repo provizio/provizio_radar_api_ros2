@@ -23,7 +23,7 @@ MAX_MESSAGE_AGE = 0.5
 TEST_NAME = "test_radar_odometry"
 FRAME_ID = "test_radar_odometry_frame"
 NUM_MESSAGES_NEEDED = 10
-EXPECTED_CHILD_FRAME_ID = "odometry_child_frame"
+EXPECTED_HEADER_FRAME_ID = "odom"
 EXPECTED_POSE_COVARIANCE = [
     0.0,
     0.1,
@@ -117,10 +117,11 @@ class TestNode(test_framework.Node):
         )
 
     def listener_callback(self, msg: Odometry):
-        if msg.header.frame_id != FRAME_ID:
+        # Odometry names its radar in child_frame_id; header.frame_id is the odometry frame
+        if msg.child_frame_id != FRAME_ID:
             # Something else received, we want another FRAME_ID
             print(
-                f"{TEST_NAME}: Unexpected FRAME_ID message received: {msg.header.frame_id}"
+                f"{TEST_NAME}: Unexpected child_frame_id message received: {msg.child_frame_id}"
             )
             return
 
@@ -132,7 +133,7 @@ class TestNode(test_framework.Node):
         self.check_age(msg.header, MAX_MESSAGE_AGE)
 
         self.check_value(
-            "msg.child_frame_id", msg.child_frame_id, EXPECTED_CHILD_FRAME_ID
+            "msg.header.frame_id", msg.header.frame_id, EXPECTED_HEADER_FRAME_ID
         )
         self.check_value(
             "msg.pose.covariance", msg.pose.covariance, EXPECTED_POSE_COVARIANCE

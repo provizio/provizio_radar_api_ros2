@@ -462,7 +462,9 @@ namespace provizio
     void radar_api_ros2_wrapper_dds<node_t>::on_radar_odometry(void *context, contained_odometry message)
     {
         auto &self = *static_cast<radar_api_ros2_wrapper_dds<node_t> *>(context);
-        if (!self.filter_by_frame_id(message.header.frame_id))
+        // Odometry names the radar it describes in child_frame_id. Its header.frame_id names the frame the
+        // pose is in, "odom" as REP 105 calls it, which is the same for every radar.
+        if (!self.filter_by_frame_id(message.child_frame_id))
         {
             return;
         }

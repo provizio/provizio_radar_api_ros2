@@ -149,7 +149,9 @@ RADAR_INFO_SUPPORTED_RANGES = [
     ULTRA_LONG_RANGE,
 ]
 RADAR_ODOMETRY_TOPIC_NAME = "rt/provizio_radar_odometry"
-ODOMETRY_CHILD_FRAME_ID = "odometry_child_frame"
+# The frame an odometry pose is in, as REP 105 names it. The radar the odometry describes is the
+# message's child_frame_id.
+ODOMETRY_FRAME_ID = "odom"
 ODOMETRY_POSITION = [1.0, 2.0, 3.0]
 ODOMETRY_ORIENTATION = [4.0, 5.0, 6.0, 7.0]
 ODOMETRY_POSE_COVARIANCE = [
@@ -377,8 +379,8 @@ def publish_radar_odometry(
 
     def publish():
         odometry = provizio_dds.Odometry()
-        odometry.header(make_header(frame_id))
-        odometry.child_frame_id(ODOMETRY_CHILD_FRAME_ID)
+        odometry.header(make_header(ODOMETRY_FRAME_ID))
+        odometry.child_frame_id(frame_id)
         position = provizio_dds.Point()
         position.x(ODOMETRY_POSITION[0])
         position.y(ODOMETRY_POSITION[1])

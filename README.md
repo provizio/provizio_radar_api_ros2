@@ -103,7 +103,8 @@ expose it).
 Odometry based on radar data.
 
 - Supported with `PROVIZIO_RADAR_API`: `dds`.
-- Message Type: [nav_msgs/msg/Odometry](https://docs.ros2.org/latest/api/nav_msgs/msg/Odometry.html).
+- Message Type: [nav_msgs/msg/Odometry](https://docs.ros2.org/latest/api/nav_msgs/msg/Odometry.html). [Additional details](https://github.com/provizio/provizio_dds_idls/blob/develop/TOPICS.md#radar-odometry).
+- Frames: `header.frame_id` is `odom`, the frame the pose is in, as [REP 105](https://www.ros.org/reps/rep-0105.html) names it. `child_frame_id` is the radar the odometry describes, and the twist is in that radar's frame. Axes and signs follow [REP 103](https://www.ros.org/reps/rep-0103.html).
 - Enable parameter (bool): `publish_radar_odometry`. Default: `true`.
 - ROS 2 topic name parameter (string): `radar_odometry_topic`. Default: `/provizio/odometry/radar`.
 
@@ -195,7 +196,7 @@ Contains polygon "id" and can be used for unoccupied and other type of regions.
 
 #### Common
 
-- `frame_id` (string). Default: `""`. Sets a filter to only publish messages with the given frame id (f.e. `"provizio_radar_front_center"`), i.e. from a specific radar.
+- `frame_id` (string). Default: `""`. Sets a filter to only publish messages with the given frame id (f.e. `"provizio_radar_front_center"`), i.e. from a specific radar. Odometry is matched on its `child_frame_id`, which names the radar; every other message is matched on its `header.frame_id`.
 - `snr_threshold` (float dB). Default: `0`. Sets a filter to only publish radar points with signal-to-noise ratio >= specified value.
 
 #### UDP API
