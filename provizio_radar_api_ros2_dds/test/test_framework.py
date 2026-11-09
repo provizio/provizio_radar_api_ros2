@@ -453,8 +453,9 @@ def _do_run(
                     pass
                 process.wait()
 
-    # Report the results
-    if test_node.success == failure_expected:
+    # Report the results. A run that timed out never reached a verdict (success is still None): it
+    # received too little to check. That passes only a run that expects to receive nothing.
+    if bool(test_node.success) == failure_expected:
         print(
             f"{test_name}: Failure with frame_id_filter={frame_id_filter}. {test_node.total_messages} messages received.\n"
         )
